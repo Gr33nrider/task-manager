@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from app.models import users,projects,tasks
+from app.models import users, projects, tasks, subtasks, comments, user_projects, tasks_history, task_dependencies, ai_suggestions, ai_task 
 from app.core.config import settings
 from app.core.database import BaseModel
 

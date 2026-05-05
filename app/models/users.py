@@ -6,10 +6,13 @@ from app.core.database import BaseModel
 from datetime import datetime
 import enum
 
-
-from app.models.projects import ProjectsModel
-from app.models.tasks import TasksModel
-from app.models.user_projects import UserProjectsModel
+if TYPE_CHECKING:
+    from app.models.projects import ProjectsModel
+    from app.models.tasks import TasksModel
+    from app.models.user_projects import UserProjectsModel
+    from app.models.comments import CommentsModel
+    from app.models.tasks_history import TasksHistoryModel
+    from app.models.ai_suggestions import AISuggestionsModel
 
 class UserRole(str, enum.Enum):
     USER = "user"
@@ -24,6 +27,8 @@ class UsersModel(BaseModel):
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.USER, init=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, init=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), init=False)
     
     # user 1 <--> M projects 
@@ -33,12 +38,12 @@ class UsersModel(BaseModel):
     
     # user 1 <--> M created tasks
     created_tasks: Mapped[List["TasksModel"]] = relationship(
-        "TasksModel", foreign_keys=[TasksModel.author_id], back_populates="author", init=False
+        "TasksModel", foreign_keys="TasksModel.author_id", back_populates="author", init=False
     )
 
     # user 1 <--> M assignee tasks
     assigned_tasks: Mapped[List["TasksModel"]] = relationship(
-        "TasksModel", foreign_keys=[TasksModel.assignee_id], back_populates="assignee", init=False
+        "TasksModel", foreign_keys="TasksModel.assignee_id", back_populates="assignee", init=False
     )
 
     #
@@ -46,6 +51,12 @@ class UsersModel(BaseModel):
         "UserProjectsModel", back_populates="user", cascade="all, delete-orphan", init=False
     )
 
-
-    role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.USER)
-    is_active: Mapped[bool] = mapped_column(Boolean,default=True)
+    comments: Mapped[List["CommentsModel"]] = relationship(
+        "CommentsModel", back_populates="author", cascade="all, delete-orphan", init=False
+    )
+    history_entries: Mapped[List["TasksHistoryModel"]] = relationship(
+        "TasksHistoryModel", back_populates="user", cascade="all, delete-orphan", init=False
+    )
+    ai_suggestions: Mapped[List["AISuggestionsModel"]] = relationship(
+        "AISuggestionsModel", back_populates="user", cascade="all, delete-orphan", init=False
+    )

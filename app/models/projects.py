@@ -26,21 +26,22 @@ class ProjectsModel(BaseModel):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     key: Mapped[str] = mapped_column(String(10), unique=True, nullable=False, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    status: Mapped[ProjectStatus] = mapped_column(SQLEnum(ProjectStatus), default=ProjectStatus.ACTIVE, init=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), init=False)
     
     # projects M <--> 1 user 
     owner: Mapped["UsersModel"] = relationship(
-        "UsersModel", back_populates="owned_projects"
+        "UsersModel", back_populates="owned_projects" , init=False
     )
     
     # projects 1 <--> M tasks
     tasks: Mapped[List["TasksModel"]] = relationship(
-        "TasksModel", back_populates="project", cascade="all, delete-orphan"
+        "TasksModel", back_populates="project", cascade="all, delete-orphan" , init=False
     )
 
     #
     members: Mapped[List["UserProjectsModel"]] = relationship(
-        "UserProjectsModel", back_populates="project", cascade="all, delete-orphan"
+        "UserProjectsModel", back_populates="project", cascade="all, delete-orphan" , init=False
     )
 
-    status: Mapped[ProjectStatus] = mapped_column(SQLEnum(ProjectStatus), default=ProjectStatus.ACTIVE)
+    

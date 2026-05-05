@@ -24,9 +24,11 @@ class ProjectRepository:
 
         query = select(ProjectsModel).offset(offset).limit(limit)
 
-        projects = await session.execute(query)
+        result = await session.execute(query)
 
-        return projects.scalars().all()
+        projects = result.scalars().all()
+
+        return projects
     
     @classmethod
     async def list_projects(

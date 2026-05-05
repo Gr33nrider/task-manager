@@ -1,15 +1,14 @@
 
 from app.core.database import BaseModel
-
-# Сначала импортируем модели без внешних ключей
 from app.models.users import UsersModel, UserRole
-
-# Потом модели, которые зависят от User
 from app.models.projects import ProjectsModel
-from app.models.user_projects import UserProjectsModel
-
-# Затем модели, которые зависят от Project
 from app.models.tasks import TasksModel, TaskStatus, TaskPriority
+from app.models.subtasks import SubtasksModel
+from app.models.comments import CommentsModel
+from app.models.user_projects import UserProjectsModel
+from app.models.tasks_history import TasksHistoryModel
+from app.models.ai_suggestions import AISuggestionsModel
+from app.models.task_dependencies import TaskDependenciesModel
 
 
 __all__ = [
@@ -17,8 +16,13 @@ __all__ = [
     "UsersModel",
     "UserRole",
     "ProjectsModel",
-    "UserProjectsModel",
     "TasksModel",
     "TaskStatus",
-    "TaskPriority"
+    "TaskPriority",
+    "SubtasksModel",
+    "CommentsModel",
+    "UserProjectsModel",
+    "TasksHistoryModel",
+    "AISuggestionsModel",
+    "TaskDependenciesModel",
 ]

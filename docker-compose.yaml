@@ -1,16 +1,21 @@
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:18.3-alpine
     container_name: task_manager_db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: task_manager
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-task_manager}
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -25,16 +30,75 @@ services:
       timeout: 5s
       retries: 5
   
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: task_manager_pgadmin
+  celery_worker:
+    build: .
+    container_name: task_manager_celery_worker
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info --concurrency=4
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
+      - REDIS_HOST=redis 
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - POSTGRES_HOST=task_manager_db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=task_manager
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@task_manager_db:5432/task_manager
+      - CELERY_DATABASE_URL=postgresql+psycopg2://postgres:postgres@task_manager_db:5432/task_manager
+    env_file:
+      - .env
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    restart: unless-stopped
+
+  celery_beat:
+    build: .
+    container_name: task_manager_celery_beat
+    command: celery -A app.core.celery_app.celery_app beat --loglevel=info
+    environment:
+      - REDIS_HOST=redis 
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    restart: unless-stopped
+
+  flower:
+    build: .
+    container_name: task_manager_flower
+    command: celery -A app.core.celery_app.celery_app flower --port=5555 --basic-auth=admin:admin
+    ports:
+      - "5555:5555"
+    environment:
+      - REDIS_HOST=redis 
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0  
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery_worker:
+        condition: service_started
+    volumes:
+      - ./:/app
+    restart: unless-stopped
+
 
 volumes:
   postgres_data:

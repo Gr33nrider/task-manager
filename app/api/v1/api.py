@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.routers import users, auth, projects
+from app.api.v1.routers import users, auth, projects, tasks, ai_tasks
 
 api_router = APIRouter(
     prefix="/api/v1",
@@ -10,3 +10,5 @@ api_router = APIRouter(
 api_router.include_router(users.router)
 api_router.include_router(auth.router)
 api_router.include_router(projects.router)
+api_router.include_router(tasks.router)
+api_router.include_router(ai_tasks.router)

@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.models.users import UsersModel
     from app.models.projects import ProjectsModel
 
+
 class UserProjectRole(str, enum.Enum):
     OWNER = "owner"
     ADMIN = "admin"
@@ -22,6 +23,7 @@ class UserProjectsModel(BaseModel):
     
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, init=False)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True, init=False)
+    role: Mapped[str] = mapped_column(SQLEnum(UserProjectRole), default=UserProjectRole.MEMBER, init=False)
     joined_at: Mapped[datetime] = mapped_column(server_default=func.now())
     
     # user 1 <--> M project member
@@ -30,4 +32,4 @@ class UserProjectsModel(BaseModel):
     # project 1 <--> M user members
     project: Mapped["ProjectsModel"] = relationship("ProjectsModel", back_populates="members")
 
-    role: Mapped[str] = mapped_column(SQLEnum(UserProjectRole), default=UserProjectRole.MEMBER)
+    

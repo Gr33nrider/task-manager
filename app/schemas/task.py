@@ -51,11 +51,13 @@ class SSubtaskBase(BaseModel):
 class SSubtaskCreate(SSubtaskBase):
     task_id: int
 
+class SSubtaskUpdate(SSubtaskBase):
+    pass
+
 
 class SSubtaskResponse(SSubtaskBase):
     id: int
     task_id: int
-    position: int
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)

@@ -99,3 +99,4 @@ async def get_current_admin_user(
     return current_user
 
 OAuth2Dep = Annotated[OAuth2PasswordRequestForm, Depends()]
+CurrentUserDep = Annotated[UsersModel, Depends(get_current_active_user)]

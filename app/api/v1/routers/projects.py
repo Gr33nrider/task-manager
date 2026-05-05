@@ -25,6 +25,7 @@ async def get_all_projects(
     """Получить список всех проектов (только админ)"""
     try:
         projects = await ProjectRepository.get_all(session, current_user, offset, limit)
+        return projects
     except PermissionError:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
