@@ -6,6 +6,8 @@ from app.core.database import SessionDep
 from app.core.auth import CurrentUserDep
 from app.api.v1.repository.tasks import TaskRepository
 from app.api.v1.repository.subtasks import SubtaskRepository
+from app.api.v1.repository.projects import ProjectRepository
+from app.models.subtasks import SubtasksModel
 from app.schemas.task import (
     STaskCreate, STaskUpdate, STaskResponse,
     SSubtaskCreate, SSubtaskUpdate, SSubtaskResponse,
@@ -25,26 +27,13 @@ async def create_task(
     """
     Создать новую задачу
     """
-
-    result = await session.execute(
-        select(ProjectsModel).where(ProjectsModel.id == task_data.project_id)
-    )
-    project = result.scalar_one_or_none()
-    
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
-    
-    if project.owner_id != current_user.id and current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to create task in this project"
-        )
-    
-    task = await TaskRepository.create_task(session, task_data, current_user.id)
-    return task
+    try:
+        project = await ProjectRepository.get_project(task_data.project_id, session, current_user)
+        
+        task = await TaskRepository.create_task(session, task_data, current_user)
+        return task
+    except HTTPException as e:
+        raise e
 
 
 @router.get("/{task_id}")
@@ -77,27 +66,23 @@ async def update_task(
     """
     Обновить задачу (только автор или админ)
     """
-    try:
-        task = await TaskRepository.update_task(
-            session, 
-            task_id, 
-            task_update, 
-            current_user.id,
-            current_user.role == "admin"
-        )
-        
-        if not task:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
-            )
-        
-        return task
-    except PermissionError:
+
+    task = await TaskRepository.update_task(
+        session, 
+        task_id, 
+        task_update, 
+        current_user.id,
+        current_user.role == "admin"
+    )
+    
+    if not task:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to update this task"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Задача не найдена"
         )
+    
+    return task
+        
 
 
 @router.patch("/{task_id}/status")
@@ -128,26 +113,23 @@ async def delete_task(
     current_user: CurrentUserDep
 ):
     """
-    Удалить задачу (только автор или админ)
+    Удалить задачу (владелец, проекта, админ проекта, автор, админ системы)
     """
-    try:
-        deleted = await TaskRepository.delete_task(
-            session, 
-            task_id, 
-            current_user.id,
-            current_user.role == "admin"
-        )
-        
-        if not deleted:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
-            )
-    except PermissionError:
+    deleted = await TaskRepository.delete_task(
+        session, 
+        task_id, 
+        current_user.id,
+        current_user.role == "admin"
+    )
+    
+    if not deleted:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to delete this task"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found"
         )
+    
+    return {"success": deleted}
+        
 
 
 
@@ -217,13 +199,20 @@ async def create_subtask(
     """
     Добавить подзадачу к задаче
     """
+    
     task = await TaskRepository.get_task_by_id(session, task_id)
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Task not found"
+            detail="Задача не найдена"
         )
     
+    project_role = await ProjectRepository.get_project_role(session, task.project_id, current_user.id)
+
+    if task.author_id != current_user.id and current_user.role != "admin":
+        if project_role != "owner" and project_role != "admin":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно привилегий")
+
     subtask = await SubtaskRepository.create(session, task_id, subtask_data)
     return subtask
 
@@ -265,3 +254,19 @@ async def delete_subtask(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Subtask not found"
         )
+
+@router.get("/{task_id}/total-hours")
+async def get_task_total_hours(
+    task_id: int,
+    session: SessionDep,
+    current_user: CurrentUserDep
+):
+    """Получение общего времени задачи (сумма всех подзадач)"""
+    
+    result = await session.execute(
+        select(SubtasksModel).where(SubtasksModel.task_id == task_id)
+    )
+    subtasks = result.scalars().all()
+    total_hours = sum(s.estimated_hours or 0 for s in subtasks)
+    
+    return {"total_hours": total_hours}

@@ -1,0 +1,154 @@
+{% extends "admin/base_admin.html" %}
+
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-people-fill"></i> Управление пользователями</h2>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-11">
+                <input type="text" class="form-control" name="search" placeholder="Поиск по имени, email..." value="{{ search }}">
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Имя пользователя</th>
+                    <th>Email</th>
+                    <th>Полное имя</th>
+                    <th>Роль</th>
+                    <th>Активен</th>
+                    <th>Дата регистрации</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr id="user-row-{{ user.id }}">
+                    <td>{{ user.id }}</div>
+                    <td>{{ user.username }}</div>
+                    <td>{{ user.email }}</div>
+                    <td>{{ user.full_name or '—' }}</div>
+                    <td>
+                        <select class="form-select form-select-sm role-select" data-user-id="{{ user.id }}">
+                            <option value="user" {% if user.role == 'user' %}selected{% endif %}>Пользователь</option>
+                            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Администратор</option>
+                        </select>
+                    </div>
+                    <td>
+                        <div class="form-check">
+                            <input class="form-check-input active-toggle" type="checkbox" data-user-id="{{ user.id }}" {% if user.is_active %}checked{% endif %}>
+                        </div>
+                    </div>
+                    <td>{{ user.created_at.strftime('%d.%m.%Y') }}</div>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger delete-user" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    </div>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">Пользователи не найдены</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Пагинация -->
+{% if total_pages > 1 %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% for p in range(1, total_pages + 1) %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link" href="?page={{ p }}&search={{ search }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+</nav>
+{% endif %}
+
+<script>
+    // Изменение роли
+    document.querySelectorAll('.role-select').forEach(select => {
+        select.addEventListener('change', async function() {
+            const userId = this.dataset.userId;
+            const newRole = this.value;
+            
+            const response = await fetch(`/admin/users/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: newRole }),
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                showNotification('Роль обновлена', 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                showNotification('Ошибка обновления', 'danger'); 
+            }
+        });
+    });
+    
+    // Изменение статуса активности
+    document.querySelectorAll('.active-toggle').forEach(toggle => {
+        toggle.addEventListener('change', async function() {
+            const userId = this.dataset.userId;
+            const isActive = this.checked;
+            
+            const response = await fetch(`/admin/users/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active: isActive }),
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                showNotification('Успешно', 'success');
+            } else {
+                showNotification('Ошибка обновления', 'danger'); 
+            }
+        });
+    });
+    
+    // Удаление пользователя
+    document.querySelectorAll('.delete-user').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const userId = this.dataset.userId;
+            const userName = this.dataset.userName;
+            
+            if (confirm(`Удалить пользователя "${userName}"?`)) {
+                const response = await fetch(`/admin/users/${userId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    document.getElementById(`user-row-${userId}`).remove();
+                    showNotification('Пользователь удалён', 'success');
+                } else {
+                    showNotification('Ошибка удаления', 'danger');
+                }
+            }
+        });
+    });
+    
+
+</script>
+{% endblock %}

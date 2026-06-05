@@ -1,0 +1,73 @@
+{% extends "auth/auth_base.html" %}
+
+{% block title %}Регистрация - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white text-center">
+                    <h4 class="mb-0"><i class="bi bi-person-plus"></i> Регистрация</h4>
+                </div>
+                <div class="card-body">
+                    <form id="registerForm" hx-post="/api/v1/auth/register" hx-target="#form-message" hx-swap="innerHTML">
+                        
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Ник</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" required >
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="full_name" class="form-label">Полное имя</label>
+                            <input type="text" class="form-control" id="full_name" name="full_name" placeholder="Необезательно">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Пароль</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            <div class="form-text">Минимум 8 символов</div>
+                        </div>
+                        
+                        <div id="form-message" style="display: none;"></div>
+                        <div id="form-error" onclick="closeNotification()"></div>
+                        
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-check-lg"></i> Зарегистрироваться
+                        </button>
+                    </form>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="text-center">
+                        <p class="mb-0">Уже есть аккаунт? <a href="/auth/login">Войти</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('registerForm').addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.successful && evt.detail.xhr.status === 201) {
+            window.location.href = '/auth/login?registered=true';            
+        }
+    });
+    document.getElementById('registerForm').addEventListener('htmx:responseError', function(evt) {
+        const status = evt.detail.xhr.status;
+        const response = JSON.parse(evt.detail.xhr.responseText);
+        document.getElementById('form-error').innerHTML =
+            `<div class="alert alert-danger"> ${response.detail}</div>`;
+    });
+
+    function closeNotification() {
+        this.innerHTML = ''
+    }
+</script>
+{% endblock %}

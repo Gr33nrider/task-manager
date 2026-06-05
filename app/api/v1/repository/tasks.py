@@ -3,9 +3,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import datetime
+from fastapi import HTTPException, status
 
+from app.core.auth import CurrentUserDep
 from app.models.tasks import TasksModel, TaskStatus
 from app.schemas.task import STaskCreate, STaskUpdate
+from app.api.v1.repository.projects import ProjectRepository
+from app.api.v1.repository.users import UserRepository
 
 
 class TaskRepository:
@@ -14,20 +18,30 @@ class TaskRepository:
     async def create_task(
         cls, 
         session: AsyncSession, 
-        task_data: STaskCreate, 
-        author_id: int
+        task_data: STaskCreate,
+        current_user: CurrentUserDep,
     ) -> TasksModel:
         """Создать новую задачу"""
+
+
+        data = task_data.model_dump(exclude_unset=True)
+
+        if "due_date" not in data.keys():
+            data["due_date"] = None
         
-        data = task_data.model_dump()
+        if "assignee_id" not in data.keys():
+            data["assignee_id"] = None
+            
+        new_task = TasksModel(**data, author_id = current_user.id)
 
-        new_task = TasksModel(**data, author_id=author_id)
-
-        new_task.author_id = author_id
+        new_task.author_id = current_user.id
         
         session.add(new_task)
         await session.commit()
         await session.refresh(new_task)
+
+
+        new_task.project = await ProjectRepository.get_project(task_data.project_id,session,current_user)
         
         return new_task
     
@@ -39,7 +53,7 @@ class TaskRepository:
         session: AsyncSession, 
         task_id: int,
         load_relations: bool = False
-    ) -> Optional[TasksModel]:
+    ) -> TasksModel:
         """Получить задачу по ID"""
         query = select(TasksModel).where(TasksModel.id == task_id)
         
@@ -53,7 +67,12 @@ class TaskRepository:
             )
         
         result = await session.execute(query)
-        return result.scalar_one_or_none()
+        task = result.scalar_one_or_none()
+
+        if task is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+        
+        return task
     
     @classmethod
     async def get_by_project(
@@ -66,7 +85,7 @@ class TaskRepository:
         assignee_id: Optional[int] = None
     ) -> List[TasksModel]:
         """Получить задачи проекта с фильтрацией"""
-        query = select(TasksModel).where(TasksModel.project_id == project_id)
+        query = select(TasksModel).where(TasksModel.project_id == project_id).options(selectinload(TasksModel.assignee),selectinload(TasksModel.author))
         
         if status:
             query = query.where(TasksModel.status == status)
@@ -87,17 +106,29 @@ class TaskRepository:
         current_user_id: int,
         is_admin: bool = False
     ) -> Optional[TasksModel]:
-        """Обновить задачу (только автор или админ)"""
+        """Обновить задачу (владелец проекта, админ проекта, автор или админ системы)"""
         task = await cls.get_task_by_id(session, task_id)
         
         if not task:
             return None
         
+        project_role = await ProjectRepository.get_project_role(session, task.project_id, current_user_id)
         
         if task.author_id != current_user_id and not is_admin:
-            raise PermissionError("Not enough permissions to update this task")
+            if project_role != "owner" and project_role != "admin":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Недостаточно привилегий для обновления задачи"
+                )
         
+        if not task_update.due_date:
+            task_update.due_date = None
+
+        if not task_update.assignee_id:
+            task_update.assignee_id = None
+
         update_data = task_update.model_dump(exclude_unset=True)
+
         
         for field, value in update_data.items():
             setattr(task, field, value)
@@ -121,8 +152,14 @@ class TaskRepository:
         if not task:
             return False
         
+        project_role = await ProjectRepository.get_project_role(session, task.project_id, current_user_id)
+
         if task.author_id != current_user_id and not is_admin:
-            raise PermissionError("Not enough permissions to delete this task")
+            if project_role != "owner" and project_role != "admin":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Недостаточно привилегий для удаления"
+                )
         
         await session.delete(task)
         await session.commit()

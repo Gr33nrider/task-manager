@@ -61,6 +61,7 @@ class AITasksRepository:
 
         return DecomposeResponse(
             ai_task_id=ai_task.id,
+            task_id=request.task_id,
             status=ai_task.status,
             celery_task_id=celery_result.id,
             message="Task decomposition started. Use /ai/status/{ai_task_id} to check progress."
@@ -85,6 +86,8 @@ class AITasksRepository:
             )
         
         return ai_task
+
+
     
     @classmethod
     async def get_all(

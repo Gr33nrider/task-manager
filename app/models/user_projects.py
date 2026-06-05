@@ -21,15 +21,16 @@ class UserProjectRole(str, enum.Enum):
 class UserProjectsModel(BaseModel):
     __tablename__ = "user_projects"
     
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, init=False)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True, init=False)
-    role: Mapped[str] = mapped_column(SQLEnum(UserProjectRole), default=UserProjectRole.MEMBER, init=False)
-    joined_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
+    joined_at: Mapped[datetime] = mapped_column(server_default=func.now(), init=False)
     
     # user 1 <--> M project member
     user: Mapped["UsersModel"] = relationship("UsersModel", back_populates="projects")
 
     # project 1 <--> M user members
     project: Mapped["ProjectsModel"] = relationship("ProjectsModel", back_populates="members")
+
+    role: Mapped[str] = mapped_column(SQLEnum(UserProjectRole), default=UserProjectRole.MEMBER)
 
     

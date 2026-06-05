@@ -1,0 +1,78 @@
+<!-- templates/components/navbar.html -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/main">
+            <i class="bi bi-robot"></i> {{ app_name }}
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            {% if current_user %}
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/main">
+                        <i class="bi bi-house-door"></i> Главная
+                    </a>
+                </li>
+                {% if current_user.role == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/dashboard">
+                            <i class="bi bi-shield-lock-fill"></i> Админ панель
+                        </a>
+                    </li>
+                {% endif %}
+                <li class="nav-item">
+                    <a class="nav-link" href="/main">
+                        <i class="bi bi-folder"></i> Проекты
+                    </a>
+                </li>
+            </ul>
+            <div class="btn-group">
+                <button type="button" class="btn btn-primary d-flex align-items-center" onclick="window.location.href='/profile'">
+                    <div class="member-avatar bg-success text-white me-2">
+                        {{ current_user.username[0]|upper | default() }}
+                    </div>
+                    {{ current_user.full_name if current_user.full_name else current_user.username }}
+                </button>
+                <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="visually-hidden">Раскрыть</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="/profile"><i class="bi bi-gear"></i> Настройки</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="/auth/logout" id="logout-btn"><i class="bi bi-box-arrow-right"></i> Выйти</a></li>
+                </ul>
+            </div>
+            {% else %}
+            <a href="/auth/login" class="btn btn-outline-light">
+                <i class="bi bi-box-arrow-in-right"></i> Войти
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</nav>
+<style>
+    .member-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+    .profile-avatar {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 2rem;
+        flex-shrink: 0;
+    }
+</style>

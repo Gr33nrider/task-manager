@@ -1,0 +1,129 @@
+<form id="inviteMemberForm" 
+        hx-post="/api/v1/projects/{{ project.id }}/add-member"
+        hx-target="#invite-message"
+        hx-swap="innerHTML"
+        hx-on::after-request="if(event.detail.successful) { 
+            const modal = bootstrap.Modal.getInstance(document.getElementById('inviteMemberModal'));
+            if (modal) {
+                modal.hide();
+                setTimeout(() => {
+                    window.location.reload()
+                }, 2000);
+            }
+            
+            
+        }">
+    
+    <div id="invite-message"></div>
+    
+    <div class="mb-3">
+        <label for="user_search" class="form-label">Пользователь</label>
+        <input type="text" class="form-control" id="user_search" 
+                placeholder="Введите имя пользователя, email или полное имя..."
+                autocomplete="off">
+        <input type="hidden" id="selected_user_id" name="user_id" required>
+        <div id="search_results" class="list-group mt-2" style="display: none; max-height: 300px; overflow-y: auto;"></div>
+    </div>
+    
+    <div class="mb-3">
+        <label for="role" class="form-label">Роль</label>
+        <select class="form-select" id="role" name="role">
+            <option value="member">Участник</option>
+            <option value="viewer">Гость</option>
+            <option value="admin">Администратор</option>
+        </select>
+        <div class="form-text">
+            <i class="bi bi-info-circle"></i> 
+            Администраторы могут управлять проектом и приглашать участников
+        </div>
+    </div>
+    
+    <div class="d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="submit" class="btn btn-success" id="submitInviteBtn" disabled>
+            <i class="bi bi-person-plus-fill"></i> Пригласить
+        </button>
+    </div>
+</form>
+
+<script>
+    // Поиск пользователей при вводе
+    const searchInput = document.getElementById('user_search');
+    const searchResults = document.getElementById('search_results');
+    const selectedUserId = document.getElementById('selected_user_id');
+    const submitBtn = document.getElementById('submitInviteBtn');
+    let searchTimeout;
+    
+    searchInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        
+        if (query.length < 2) {
+            searchResults.style.display = 'none';
+            searchResults.innerHTML = '';
+            selectedUserId.value = '';
+            submitBtn.disabled = true;
+            return;
+        }
+        
+        searchTimeout = setTimeout(async () => {
+            try {
+                const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
+                const users = await response.json();
+                
+                if (users.length === 0) {
+                    searchResults.innerHTML = '<div class="list-group-item text-muted">Пользователи не найдены</div>';
+                    searchResults.style.display = 'block';
+                    selectedUserId.value = '';
+                    submitBtn.disabled = true;
+                    return;
+                }
+                
+                searchResults.innerHTML = users.map(user => `
+                    <a href="#" class="list-group-item list-group-item-action" data-user-id="${user.id}" data-user-name="${user.display}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${escapeHtml(user.full_name || user.username)}</strong>
+                                <br>
+                                <small class="text-muted">@${user.username} • ${user.email}</small>
+                            </div>
+                            <i class="bi bi-person-plus-fill text-success"></i>
+                        </div>
+                    </a>
+                `).join('');
+                searchResults.style.display = 'block';
+                
+                // Добавляем обработчики на результаты поиска
+                searchResults.querySelectorAll('.list-group-item').forEach(item => {
+                    item.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const userId = this.dataset.userId;
+                        const userName = this.dataset.userName;
+                        
+                        searchInput.value = userName;
+                        selectedUserId.value = userId;
+                        searchResults.style.display = 'none';
+                        submitBtn.disabled = false;
+                    });
+                });
+                
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+        }, 300);
+    });
+    
+    // Закрываем результаты поиска при клике вне
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+            searchResults.style.display = 'none';
+        }
+    });
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>

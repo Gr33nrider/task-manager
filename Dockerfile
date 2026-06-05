@@ -14,6 +14,3 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Копирование кода
 COPY . .
-
-# Celery worker будет запускаться через docker-compose
-CMD ["celery", "-A", "app.celery_app", "worker", "--loglevel=info"]

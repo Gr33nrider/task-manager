@@ -1,0 +1,184 @@
+<div id="kanban-board" class="kanban-wrapper"
+    hx-get="/api/tasks/kanban/{{ project_id }}" 
+    hx-trigger="taskUpdated from:body, every 15s" 
+    hx-swap="outerHTML">
+    <div class="kanban-board">
+        {% for status, tasks in columns.items() %}
+        <div class="kanban-column" data-status="{{ status }}" data-project-id="{{ project_id }}">
+            <div class="card bg-light h-100">
+                <div class="card-header {% if status == 'todo' %} bg-secondary
+                                        {% elif status == 'in_progress' %} bg-primary
+                                        {% elif status == 'review' %} bg-warning
+                                        {% elif status == 'done' %} bg-success
+                                        {% elif status == 'blocked' %} bg-danger
+                                        {% endif %} text-white text-center py-2">
+                                        <p><span class="badge bg-light text-dark mt-2">{{ tasks|length }}</span></p>
+                    <strong>
+                        <i class="bi 
+                            {% if status == 'todo' %} bi-inbox
+                            {% elif status == 'in_progress' %} bi-arrow-repeat
+                            {% elif status == 'review' %} bi-eye
+                            {% elif status == 'done' %} bi-check2-circle
+                            {% elif status == 'blocked' %} bi-exclamation-octagon
+                            {% endif %} me-1">
+                        </i>
+                        {{ status_labels[status] }}
+                    </strong>
+                </div>
+                <div class="card-body kanban-column-body p-2">
+                    
+                    <div class="task-list" data-column="{{ status }}">
+                        {% for task in tasks %}
+                            {% include "components/task_card.html" %}
+                        {% else %}
+                            <div class="text-muted text-center py-4">
+                                <i class="bi bi-inbox" style="font-size: 1.5rem;"></i>
+                                <div><small>Нет задач</small></div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+    /* Общий контейнер */
+    .kanban-wrapper {
+        width: 100%;
+        padding: 0;
+        margin: 0;
+    }
+    
+    /* По умолчанию: вертикальная колонка (для мобильных) */
+    .kanban-board {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    /* На широких экранах: горизонтальный ряд с растяжением */
+    @media (min-width: 1000px) {
+        .kanban-board {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            gap: 1rem;
+            width: 100%;
+        }
+        
+        .kanban-column {
+            flex: 1;
+            min-width: 0; /* Предотвращает переполнение */
+        }
+    }
+    
+    /* Каждая колонка */
+    .kanban-column {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* Тело колонки с задачами */
+    .kanban-column-body {
+        min-height: 500px;
+        max-height: calc(100vh - 250px);
+        overflow-y: auto;
+        background-color: #f8f9fa;
+    }
+    
+    /* Стили для карточек задач */
+    .task-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    /* Адаптация для больших экранов */
+    @media (min-width: 1920px) {
+        .kanban-column-body {
+            min-height: 600px;
+            max-height: calc(100vh - 200px);
+        }
+    }
+    
+    /* Адаптация для планшетов (уже вертикальная) */
+    @media (max-width: 1350px) and (min-width: 768px) {
+        .kanban-column {
+            width: 100%;
+        }
+        .kanban-column-body {
+            min-height: 400px;
+            max-height: calc(100vh - 200px);
+        }
+    }
+    
+    /* Адаптация для мобильных устройств */
+    @media (max-width: 576px) {
+        .kanban-column-body {
+            min-height: 350px;
+            max-height: calc(100vh - 180px);
+        }
+    }
+    
+    /* Скроллбар для колонок */
+    .kanban-column-body::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .kanban-column-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+    
+    .kanban-column-body::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 3px;
+    }
+    
+    .kanban-column-body::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+</style>
+
+<script>
+    function initKanbanDragAndDrop() {
+        document.querySelectorAll('.task-list').forEach(function(column) {
+            if (column.sortable) {
+                column.sortable.destroy();
+            }
+            
+            column.sortable = new Sortable(column, {
+                group: 'tasks',
+                animation: 150,
+                onEnd: function(evt) {
+                    const taskId = evt.item.getAttribute('data-task-id');
+                    const newStatus = evt.to.closest('.kanban-column').getAttribute('data-status');
+                    
+                    fetch(`/api/tasks/${taskId}/status?status=${newStatus}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        credentials: 'include'
+                    }).then(response => {
+                        if (response.ok) {
+                            document.body.dispatchEvent(new CustomEvent('taskUpdated'));
+                        }
+                    }).catch(error => {
+                        console.error('Drag-and-drop error:', error);
+                    });
+                }
+            });
+        });
+    }
+    
+    initKanbanDragAndDrop();
+    
+    // Переинициализация после обновления
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.target.id === 'kanban-board') {
+            setTimeout(initKanbanDragAndDrop, 100);
+        }
+    });
+</script>

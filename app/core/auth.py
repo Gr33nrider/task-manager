@@ -2,7 +2,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Annotated
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, Request, status, Depends
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -16,7 +17,7 @@ from app.schemas.token import STokenData
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -41,12 +42,43 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-async def get_current_user(session: SessionDep, token: str = Depends(oauth2_scheme)) -> UsersModel:
+async def get_token_from_request(request: Request, token: Optional[str] = Depends(oauth2_scheme)) -> Optional[str]:
+    """
+    Извлекает токен из разных источников в порядке приоритета:
+    1. Cookie 'access_token' (HttpOnly)
+    2. Заголовок Authorization: Bearer <token>
+    3. Параметр запроса 'token' (опционально)
+    """
+    # 1. Проверяем cookie
+    cookie_token = request.cookies.get("access_token")
+    if cookie_token:
+        return cookie_token
+    
+    # 2. Проверяем заголовок Authorization
+    if token:
+        return token
+    
+    # 3. Проверяем параметр запроса (для WebSocket или тестирования)
+    query_token = request.query_params.get("token")
+    if query_token:
+        return query_token
+    
+    return None
+
+
+async def get_current_user(
+        request: Request,
+        session: SessionDep, 
+        token: Optional[str] = Depends(get_token_from_request)
+    ) -> UsersModel:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    if not token:
+        raise credentials_exception
     
     try:
         payload = jwt.decode(
@@ -97,6 +129,7 @@ async def get_current_admin_user(
             detail="Not enough permissions"
         )
     return current_user
+
 
 OAuth2Dep = Annotated[OAuth2PasswordRequestForm, Depends()]
 CurrentUserDep = Annotated[UsersModel, Depends(get_current_active_user)]

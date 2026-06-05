@@ -1,10 +1,18 @@
 from contextlib import asynccontextmanager
-from app.core.database import engine, BaseModel
-import uvicorn
-from fastapi import FastAPI
-from app.core.config import settings
-from app.api.v1.api import api_router
 
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
+from app.core.middleware import AuthMiddleware
+from app.core.database import engine, BaseModel
+from app.core.config import settings
+from app.core.templates import templates
+from app.api.v1.api import api_router
+from app.api.v1.routers.pages import pages_router
+from app.api.v1.routers.admin import admin_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,19 +31,14 @@ app = FastAPI(
     lifespan=lifespan
     )
 
+BASE_DIR = Path(__file__).parent
+
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "app" / "static")), name="static")
+
 app.include_router(api_router)
-
-@app.get("/")
-async def root():
-    return {
-        "message": f"Welcome to {settings.app_name}",
-        "version": settings.app_version,
-        "status": "running"
-    }
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+app.include_router(pages_router)
+app.include_router(admin_router)
+app.add_middleware(AuthMiddleware)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0",port=8000, reload=True)

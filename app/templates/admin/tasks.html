@@ -1,0 +1,137 @@
+<!-- templates/admin/tasks.html -->
+{% extends "admin/base_admin.html" %}
+
+{% block admin_content %}
+<h2 class="mb-4"><i class="bi bi-list-task"></i> Управление задачами</h2>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-11">
+                <input type="text" class="form-control" name="search" placeholder="Поиск по заголовку..." value="{{ search }}">
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                    <th>Статус</th>
+                    <th>Приоритет</th>
+                    <th>Автор</th>
+                    <th>Дата создания</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr id="task-row-{{ task.id }}">
+                    <td>{{ task.id }}</div>
+                    <td>{{ task.title[:50] }}{% if task.title|length > 50 %}...{% endif %}</div>
+                    <td>
+                        <select class="form-select form-select-sm task-status" data-task-id="{{ task.id }}">
+                            <option value="todo" {% if task.status == 'todo' %}selected{% endif %}>К выполнению</option>
+                            <option value="in_progress" {% if task.status == 'in_progress' %}selected{% endif %}>В работе</option>
+                            <option value="review" {% if task.status == 'review' %}selected{% endif %}>На проверке</option>
+                            <option value="done" {% if task.status == 'done' %}selected{% endif %}>Готово</option>
+                            <option value="blocked" {% if task.status == 'blocked' %}selected{% endif %}>Заблокировано</option>
+                        </select>
+                    </div>
+                    <td>
+                        <select class="form-select form-select-sm task-priority" data-task-id="{{ task.id }}">
+                            <option value="low" {% if task.priority == 'low' %}selected{% endif %}>Низкий</option>
+                            <option value="medium" {% if task.priority == 'medium' %}selected{% endif %}>Средний</option>
+                            <option value="high" {% if task.priority == 'high' %}selected{% endif %}>Высокий</option>
+                            <option value="critical" {% if task.priority == 'critical' %}selected{% endif %}>Критический</option>
+                        </select>
+                    </div>
+                    <td>{{ task.author.username if task.author else '—' }}</div>
+                    <td>{{ task.created_at.strftime('%d.%m.%Y') }}</div>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger delete-task" data-task-id="{{ task.id }}" data-task-title="{{ task.title }}">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    </div>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">Задачи не найдены</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Изменение статуса задачи
+    document.querySelectorAll('.task-status').forEach(select => {
+        select.addEventListener('change', async function() {
+            const taskId = this.dataset.taskId;
+            const status = this.value;
+            
+            const response = await fetch(`/api/v1/admin/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: status }),
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                showNotification('Ошибка обновления', 'danger');
+                location.reload();
+            }
+        });
+    });
+    
+    // Изменение приоритета задачи
+    document.querySelectorAll('.task-priority').forEach(select => {
+        select.addEventListener('change', async function() {
+            const taskId = this.dataset.taskId;
+            const priority = this.value;
+            
+            const response = await fetch(`/api/v1/admin/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ priority: priority }),
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                showNotification('Ошибка обновления', 'danger');
+                location.reload();
+            }
+        });
+    });
+    
+    // Удаление задачи
+    document.querySelectorAll('.delete-task').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const taskId = this.dataset.taskId;
+            const taskTitle = this.dataset.taskTitle;
+            
+            if (confirm(`Удалить задачу "${taskTitle}"?`)) {
+                const response = await fetch(`/api/v1/admin/tasks/${taskId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    document.getElementById(`task-row-${taskId}`).remove();
+                    showNotification('Задача удалена', 'success');
+                } else {
+                    showNotification('Ошибка удаления', 'danger');
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

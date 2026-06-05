@@ -1,0 +1,31 @@
+<div class="card task-card mb-2 shadow-sm" 
+    data-bs-toggle="modal" data-bs-target="#taskModal" data-task-id="{{ task.id }}"
+    hx-get="/api/modals/task/{{ task.id }}" hx-target="#modal-body" hx-swap="innerHTML" hx-trigger="click">
+    
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start">
+            <h6 class="card-title mb-1">{{ task.title|truncate(40) }}</h6>
+            <span class="badge {% if task.priority == 'critical' %}bg-danger
+                              {% elif task.priority == 'high' %}bg-danger opacity-50
+                              {% elif task.priority == 'medium' %}bg-warning
+                              {% else %}bg-success opacity-50{% endif %}"
+                              style="width: 20px; height: 20px;">
+            </span>
+        </div>
+        
+        <p class="card-text small text-muted mt-2">
+            {{ task.description|truncate(80) if task.description else '—' }}
+        </p>
+        
+        <div class="d-flex justify-content-between align-items-center mt-2">
+            <small>
+                <i class="bi bi-person"></i> 
+                {{ task.assignee.username if task.assignee else 'Не назначен' }}
+            </small>
+            <small>
+                <i class="bi bi-clock"></i> 
+                {{ "%.0f"|format(task.estimated_hours) }} ч
+            </small>
+        </div>
+    </div>
+</div>

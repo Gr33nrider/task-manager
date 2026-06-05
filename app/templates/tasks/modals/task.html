@@ -1,0 +1,911 @@
+<form 
+    hx-put="/api/v1/tasks/{{ task.id }}" 
+    id="update-form" 
+    hx-target="#taskModal" 
+    hx-swap="none"
+    hx-ext="json-enc">
+    <div class="modal-body">
+        <div id="form-message"></div>
+        
+        <div class="mb-3">
+            <label for="title" class="form-label">Название задачи</label>
+            <input type="text" class="form-control" id="title" name="title" 
+                   value="{{ task.title if task else '' }}" minlength="1" maxlength="500" required disabled>
+        </div>
+        
+        <div class="mb-3">
+            <label for="description" class="form-label">Описание</label>
+            <textarea class="form-control" id="description" name="description" rows="4" disabled>{{ task.description if task else '' }}</textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="priority" class="form-label">Приоритет</label>
+            <select class="form-select" id="priority" name="priority" disabled>
+
+                <option value="low" {{ 'selected' if task and task.priority.value == 'low' }}>Низкий</option>
+                <option value="medium" {{ 'selected' if task and task.priority.value == 'medium' }}>Средний</option>
+                <option value="high" {{ 'selected' if task and task.priority.value == 'high' }}>Высокий</option>
+                <option value="critical" {{ 'selected' if task and task.priority.value == 'critical' }}>Очень высокий</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label for="estimated_hours" class="form-label">Время выполнения, часы</label>
+            <input type="number" class="form-control" id="estimated_hours" name="estimated_hours" 
+            step="0.5" min="0" max="1000" value="{{ task.estimated_hours if task else 0 }}" disabled>
+        </div>
+
+        <div class="mb-3">
+            <label for="due_date" class="form-label">Cрок выполнения</label>
+            <input type="date" class="form-control" id="due_date" name="due_date"  value="{{ task.due_date if task and task.due_date }}" required disabled>
+            <div class="form-check form-switch mt-2">
+                <label class="form-check-label" for="dateSwitch">
+                    Бессрочно
+                </label>
+                <input class="form-check-input" type="checkbox" id="dateSwitch" onchange="dateCheck()" {{ 'checked' if task and not task.due_date }} disabled>
+            </div>
+        </div>
+        
+        
+        <div class="mb-3">
+            <label for="assignee_id" class="form-label fw-semibold">
+                <i class="bi bi-person-badge me-1"></i> Исполнитель
+            </label>
+            <div class="border rounded-3 p-3 bg-light" id="isp">
+                {% if task and task.assignee %}
+                    <div class="d-flex align-items-center">
+                        <div class="assignee-avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                            style="width: 45px; height: 45px; font-size: 1.2rem; font-weight: bold;">
+                            {{ task.assignee.username[0]|upper }}
+                        </div>
+                        <div>
+                            <div class="fw-semibold">{{ task.assignee.full_name or task.assignee.username }}</div>
+                            <div class="small text-muted">@{{ task.assignee.username }}</div>
+                            <div class="small text-muted"><i class="bi bi-envelope"></i> {{ task.assignee.email }}</div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="text-muted text-center py-2">
+                        <i class="bi bi-person-x fs-4"></i>
+                        <div>Исполнитель не назначен</div>
+                        <small>Задача ожидает назначения ответственного</small>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+
+
+        {% if owner or admin or author %}
+            <div class="mb-3" id="ai-button">
+                <label class="form-label py-2">Умная декомпозиция задач</label>
+                <button type="button" class="btn btn-outline-primary w-100" id="decompose-btn" task 
+                        hx-post="/api/v1/ai/decompose"
+                        hx-target="#decompose-status" hx-vals='{"task_id": {{ task.id }} }' hx-swap="none">
+                    <i class="bi bi-magic"></i> {{ 'Разбить на подзадачи' if not task.subtasks else 'Повтор' }}
+                </button>
+                <div id="decompose-status"></div>
+                <div id="subtasks-waiting"></div>
+                
+            </div>  
+        {% endif %}
+        <!-- Кнопка и форма для ручного добавления подзадачи -->
+        <div class="mt-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                {% if owner or admin or author %}
+                <button type="button" class="btn btn-sm btn-outline-primary" id="showAddSubtaskBtn" 
+                        onclick="toggleAddSubtaskForm()" style="display: none;">
+                    <i class="bi bi-plus-lg"></i> Добавить подзадачу
+                </button>
+                {% endif %}
+            </div>
+            
+            <!-- Форма добавления подзадачи (скрыта по умолчанию) -->
+            <div id="addSubtaskForm" style="display: none;" class="mb-3">
+                <div class="card bg-light border-0">
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <input type="number" value="{{ task.id }}" id="newSubtaskTaskID" hidden>
+                            <label class="form-label small">Название подзадачи</label>
+                            <input type="text" class="form-control" id="newSubtaskTitle" 
+                                placeholder="Например: Написать документацию">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Оценка времени (часы)</label>
+                            <input type="number" class="form-control" id="newSubtaskHours" 
+                                step="0.5" min="0" max="100" value="1.0">
+                        </div>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAddSubtaskForm()">
+                                Отмена
+                            </button>
+                            <button type="button" class="btn btn-sm btn-success" id="saveSubtaskBtn">
+                                <i class="bi bi-check-lg"></i> Добавить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="subtasks-container">
+            {% if task and task.subtasks %}
+                {% include "components/subtask_list.html" %}
+            {% else %}
+                <div class="text-muted text-center py-3" id="no-subtasks-message">
+                    <i class="bi bi-inbox"></i>
+                    <p class="mb-0">Нет подзадач</p>
+                    <small>Используйте умную декомпозицию или добавьте вручную</small>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% if owner or admin or author %}
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+            <a onclick="editMode()" class="btn btn-primary">
+                <i class="bi bi-save"></i> Изменить
+            </a>
+            <a class="btn btn-danger" id="del-btn" hidden="true" hx-delete="/api/v1/tasks/{{ task.id }}" hx-trigger="click" hx-params="none" hx-confirm="Вы уверены, что хотите удалить задачу?">
+                <i class="bi bi-trash-fill"></i> Удалить задачу
+            </a>
+            <button id="save-btn" type="submit" class="btn btn-success" hidden>
+                <i class="bi bi-save"></i> Сохранить
+            </button>
+        </div>
+    {% endif %}
+
+</form>
+<script>
+if (typeof update_form === 'undefined') {
+    const update_form = document.getElementById('update-form');
+
+    update_form.addEventListener('htmx:afterRequest', function(evt) {
+
+        if (evt.detail.successful && evt.detail.elt.id == 'update-form') {
+            document.getElementById('form-message').innerHTML = `<div class="alert alert-success">Успешно обновлено!</div>`;
+            
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        }
+
+        if (evt.detail.successful && evt.detail.elt.id == 'del-btn') {
+            document.getElementById('form-message').innerHTML = `<div class="alert alert-success">Успешно удалено!</div>`;
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        }
+
+        if (evt.detail.successful && evt.detail.elt.id == 'decompose-btn') {
+            const response = JSON.parse(evt.detail.xhr.responseText);
+            const container = document.getElementById("subtasks-waiting");
+
+            container.innerHTML = `
+            <div id="status-poller" 
+                hx-get="/api/modals/task/${response.task_id}/subtasks" 
+                hx-trigger="every 5s" 
+                hx-target="#subtasks-container"
+                hx-swap="innerHTML">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">AI анализирует задачу и создаёт подзадачи...</p>
+                    <small class="text-muted">Обычно это занимает 5-10 секунд</small>
+                </div>
+            </div>`;
+            htmx.process(container);    
+        }
+
+        if (evt.detail.successful && evt.detail.elt.id === 'status-poller') {
+            try {
+                const contentType = evt.detail.xhr.getResponseHeader("Content-Type");
+                if (contentType && contentType.includes("text/html")) {
+                    console.log("status-poller founded")
+                    const responseText = evt.detail.xhr.responseText;
+                    const hasSubtasks = responseText.includes('data-has-subtasks="true"');
+
+                    if (hasSubtasks) {
+                        const poller = document.getElementById('status-poller');
+                        console.log("has subtasks")
+                        if (poller) {
+                            console.log("has poller")
+                            poller.removeAttribute('hx-trigger');
+                            poller.removeAttribute('hx-get');
+                            poller.removeAttribute('hx-swap');
+
+                            const subtasksContainer = document.getElementById('subtasks-container');
+                            if (subtasksContainer) {
+                                subtasksContainer.innerHTML = responseText;
+                            }
+
+                            const aiButton = document.getElementById('ai-button');
+                            if (aiButton) aiButton.remove();
+
+                            poller.innerHTML = '';
+                            poller.remove();
+                            
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Ошибка обработки JSON ответа:", e);
+            }
+        }
+
+    });
+
+    update_form.addEventListener('htmx:responseError', function(evt) {
+        const status = evt.detail.xhr.status;
+        const response = JSON.parse(evt.detail.xhr.responseText);
+        if (evt.detail.elt.id != 'status-poller') {
+            document.getElementById('form-message').innerHTML =
+                `<div class="alert alert-danger"> ${response.detail}</div>`;
+        }
+    });
+}
+
+function editMode() {
+    const form = document.getElementById('update-form');
+    if (!form) return;
+    
+    const disabledFields = form.querySelectorAll('[disabled]');
+    disabledFields.forEach(field => {
+        field.disabled = false;
+    });
+
+    const dateswitch = document.getElementById("dateSwitch");
+
+    dateswitch.checked = false;
+
+    
+
+    // Заменяем блок исполнителя
+    const isp = document.getElementById('isp');
+    isp.innerHTML = `
+        <div class="card bg-light border-0 mb-3">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-person-plus fs-5 me-2 text-success"></i>
+                        <span class="fw-medium">Назначить исполнителя</span>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="assigneeSwitch" 
+                            style="width: 3rem; height: 1.5rem; cursor: pointer;"
+                            onchange="toggleAssigneeCards()">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="assigneeCardsContainer" style="display: none;">
+            <div class="row g-2" id="assigneeCards">
+                {% for member in members %}
+                <div class="col-md-6">
+                    <div class="assignee-card" 
+                        data-user-id="{{ member.user.id }}"
+                        data-user-name="{{ member.user.full_name or member.user.username }}"
+                        onclick="selectAssignee(this, '{{ member.user.id }}')">
+                        <div class="d-flex align-items-center p-2">
+                            <div class="assignee-avatar bg-gradient-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                                style="width: 48px; height: 48px; font-size: 1.2rem; font-weight: bold;">
+                                {{ member.user.username[0]|upper }}
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold">{{ member.user.full_name or member.user.username }}</div>
+                                <small class="text-muted">@{{ member.user.username }}</small>
+                                <div class="small text-success">
+                                    <i class="bi bi-envelope"></i> {{ member.user.email }}
+                                </div>
+                            </div>
+                            <div class="assignee-check">
+                                <i class="bi bi-check-circle-fill text-success fs-4" style="display: none;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <input type="hidden" id="assignee_id" name="assignee_id" value="" disabled>
+        </div>`;
+    
+    // ==================== ДОБАВЛЯЕМ КНОПКИ В ПОДЗАДАЧИ ====================
+    // Получаем все строки подзадач
+    const subtaskRows = document.querySelectorAll('#subtasks-tbody tr');
+    
+    subtaskRows.forEach(row => {
+        const subtaskId = row.getAttribute('data-subtask-id');
+        if (!subtaskId) return;
+        
+        // Находим ячейку, куда нужно добавить кнопки
+        const lastCell = row.querySelector('td:last-child');
+        
+        // Если кнопки уже есть, не добавляем повторно
+        if (lastCell && !lastCell.querySelector('.edit-hours-btn')) {
+            // Создаём контейнер с кнопками
+            const buttonsCell = document.createElement('td');
+            buttonsCell.style.width = '100px';
+            buttonsCell.innerHTML = `
+                <button type="button" class="btn btn-lg btn-outline-primary edit-hours-btn" 
+                        data-subtask-id="${subtaskId}" title="Редактировать">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-lg btn-outline-success save-hours-btn" 
+                        data-subtask-id="${subtaskId}" style="display: none;" title="Сохранить">
+                    <i class="bi bi-check-lg"></i>
+                </button>
+                <button type="button" class="btn btn-lg btn-outline-secondary cancel-hours-btn" 
+                        data-subtask-id="${subtaskId}" style="display: none;" title="Отмена">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger delete-subtask" 
+                        data-subtask-id="${subtaskId}"
+                        data-subtask-title="${row.querySelector('.subtask-title')?.textContent || ''}"
+                        title="Удалить подзадачу">
+                    <i class="bi bi-trash3"></i>
+                </button>
+            `;
+            
+            // Если последняя ячейка уже существует, заменяем её
+            if (lastCell) {
+                lastCell.replaceWith(buttonsCell);
+            } else {
+                row.appendChild(buttonsCell);
+            }
+        }
+    });
+    
+    // Переинициализируем обработчики кнопок
+    initSubtaskHandlers();
+
+    const editBtn = document.querySelector('.btn-primary[onclick="editMode()"]');
+    const delBtn = document.getElementById("del-btn");
+    if (editBtn && delBtn) {
+        editBtn.hidden = true;
+        delBtn.hidden = false;
+        delBtn.addEventListener('htmx:afterRequest', function(evt) {
+            if (evt.detail.successful && evt.detail.xhr.status === 200) {
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            }
+        });
+        delBtn.addEventListener('htmx:responseError', function(evt) {
+            const status = evt.detail.xhr.status;
+            const response = JSON.parse(evt.detail.xhr.responseText);
+            document.getElementById('form-message').innerHTML =
+                `<div class="alert alert-danger"> ${response.detail}</div>`;
+        });
+    }
+    
+    const submitBtn = document.getElementById('save-btn');
+    if (submitBtn) {
+        submitBtn.hidden = false;
+    }
+    
+    const ai = document.getElementById("ai-button");
+    if (ai) {
+        ai.hidden = true;
+    }
+
+    // Показываем кнопку "Добавить подзадачу"
+    const addSubtaskBtn = document.getElementById('showAddSubtaskBtn');
+    if (addSubtaskBtn) {
+        addSubtaskBtn.style.display = 'inline-block';
+    }
+}
+
+async function refreshSubtasksForEdit() {
+    const taskId = document.getElementById('newSubtaskTaskID')?.value;
+    if (!taskId) return;
+    
+    try {
+        const response = await fetch(`/api/v1/tasks/${taskId}/subtasks-html`, {
+            credentials: 'include'
+        });
+        const html = await response.text();
+        const container = document.getElementById('subtasks-container');
+        if (container) {
+            container.innerHTML = html;
+            // Переинициализируем обработчики
+            initSubtaskHandlers();
+        }
+    } catch (error) {
+        console.error('Error refreshing subtasks:', error);
+    }
+}
+
+</script>
+<script>
+    // ==================== Вспомогательные функции ====================
+    
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+        notification.style.zIndex = '9999';
+        notification.style.minWidth = '300px';
+        notification.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <span>${message}</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+    }
+    
+    // ==================== Редактирование времени подзадачи ====================
+    
+    async function updateSubtaskHours(subtaskId, newHours) {
+        try {
+            const response = await fetch(`/api/v1/tasks/subtasks/${subtaskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ estimated_hours: newHours }),
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                const totalHoursSpan = document.getElementById('total-hours');
+                if (totalHoursSpan && data.total_hours !== undefined) {
+                    totalHoursSpan.textContent = data.total_hours.toFixed(1);
+                }
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Update hours error:', error);
+            return false;
+        }
+    }
+    
+    function handleEditClick(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const btn = e.currentTarget;
+        const subtaskId = btn.dataset.subtaskId;
+        
+        // Название
+        const titleDisplay = document.getElementById(`title-display-${subtaskId}`);
+        const titleInput = document.getElementById(`title-input-${subtaskId}`);
+        
+        // Время
+        const hoursDisplay = document.getElementById(`hours-display-${subtaskId}`);
+        const hoursInput = document.getElementById(`hours-input-${subtaskId}`);
+        
+        const editBtn = btn;
+        const saveBtn = document.querySelector(`.save-hours-btn[data-subtask-id="${subtaskId}"]`);
+        const cancelBtn = document.querySelector(`.cancel-hours-btn[data-subtask-id="${subtaskId}"]`);
+        const deleteSubtask = document.querySelector(`.delete-subtask[data-subtask-id="${subtaskId}"]`);
+        
+        // Показываем поля для редактирования
+        if (titleDisplay) titleDisplay.style.display = 'none';
+        if (titleInput) titleInput.style.display = 'inline-block';
+        if (hoursDisplay) hoursDisplay.style.display = 'none';
+        if (hoursInput) hoursInput.style.display = 'inline-block';
+        if (editBtn) editBtn.style.display = 'none';
+        if (saveBtn) saveBtn.style.display = 'inline-block';
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        if (deleteSubtask) deleteSubtask.style.display = 'none';
+    }
+
+    function handleCancelClick(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const btn = e.currentTarget;
+        const subtaskId = btn.dataset.subtaskId;
+        
+        // Название
+        const titleDisplay = document.getElementById(`title-display-${subtaskId}`);
+        const titleInput = document.getElementById(`title-input-${subtaskId}`);
+        
+        // Время
+        const hoursDisplay = document.getElementById(`hours-display-${subtaskId}`);
+        const hoursInput = document.getElementById(`hours-input-${subtaskId}`);
+        
+        const editBtn = document.querySelector(`.edit-hours-btn[data-subtask-id="${subtaskId}"]`);
+        const saveBtn = document.querySelector(`.save-hours-btn[data-subtask-id="${subtaskId}"]`);
+        const cancelBtn = document.querySelector(`.cancel-hours-btn[data-subtask-id="${subtaskId}"]`);
+        const deleteSubtask = document.querySelector(`.delete-subtask[data-subtask-id="${subtaskId}"]`);
+        
+        // Возвращаем исходные значения
+        if (titleInput && titleDisplay) {
+            titleInput.value = titleDisplay.textContent;
+        }
+        if (hoursInput && hoursDisplay) {
+            hoursInput.value = hoursDisplay.textContent.replace(' ч.', '');
+        }
+        
+        // Прячем поля редактирования
+        if (titleDisplay) titleDisplay.style.display = 'inline-block';
+        if (titleInput) titleInput.style.display = 'none';
+        if (hoursDisplay) hoursDisplay.style.display = 'inline-block';
+        if (hoursInput) hoursInput.style.display = 'none';
+        if (editBtn) editBtn.style.display = 'inline-block';
+        if (saveBtn) saveBtn.style.display = 'none';
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (deleteSubtask) deleteSubtask.style.display = 'inline-block';
+    }
+
+    function reorderRowsByPosition() {
+        const tbody = document.getElementById('subtasks-tbody');
+        if (!tbody) return;
+        
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        
+        rows.sort((a, b) => {
+            const posA = parseInt(a.getAttribute('data-position') || '0');
+            const posB = parseInt(b.getAttribute('data-position') || '0');
+            return posA - posB;
+        });
+        
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    async function handleSaveClick(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const btn = e.currentTarget;
+        const subtaskId = btn.dataset.subtaskId;
+        
+        const titleInput = document.getElementById(`title-input-${subtaskId}`);
+        const newTitle = titleInput.value.trim();
+        
+        const hoursInput = document.getElementById(`hours-input-${subtaskId}`);
+        const newHours = parseFloat(hoursInput.value);
+        
+        if (!newTitle) {
+            showNotification('Введите название подзадачи', 'warning');
+            return;
+        }
+        
+        if (isNaN(newHours) || newHours < 0 || newHours > 100) {
+            showNotification('Введите корректное время (0-100 часов)', 'warning');
+            return;
+        }
+        
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+        btn.disabled = true;
+        
+        try {
+            const response = await fetch(`/api/v1/tasks/subtasks/${subtaskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    title: newTitle, 
+                    estimated_hours: newHours 
+                }),
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                // Обновляем отображение
+                const titleDisplay = document.getElementById(`title-display-${subtaskId}`);
+                if (titleDisplay) titleDisplay.textContent = newTitle;
+                
+                const hoursDisplay = document.getElementById(`hours-display-${subtaskId}`);
+                if (hoursDisplay) hoursDisplay.textContent = newHours.toFixed(1) + ' ч.';
+                
+                // ✅ ОБНОВЛЯЕМ data-position (если сервер вернул новый position)
+                const row = document.getElementById(`subtask-row-${subtaskId}`);
+                if (row && data.position !== undefined) {
+                    row.setAttribute('data-position', data.position);
+                }
+                
+                // Обновляем скрытые поля
+                const hiddenTitleInput = document.getElementById(`title-input-${subtaskId}`);
+                if (hiddenTitleInput) hiddenTitleInput.value = newTitle;
+                
+                const hiddenHoursInput = document.getElementById(`hours-input-${subtaskId}`);
+                if (hiddenHoursInput) hiddenHoursInput.value = newHours;
+                
+                // Обновляем общее время
+                const totalHoursSpan = document.getElementById('total-hours');
+                if (totalHoursSpan && data.total_hours !== undefined) {
+                    totalHoursSpan.textContent = data.total_hours.toFixed(1);
+                }
+                
+                // Возвращаем режим просмотра
+                const editBtn = document.querySelector(`.edit-hours-btn[data-subtask-id="${subtaskId}"]`);
+                const saveBtn = btn;
+                const cancelBtn = document.querySelector(`.cancel-hours-btn[data-subtask-id="${subtaskId}"]`);
+                const deleteSubtask = document.querySelector(`.delete-subtask[data-subtask-id="${subtaskId}"]`);
+                
+                if (titleDisplay) titleDisplay.style.display = 'inline-block';
+                if (titleInput) titleInput.style.display = 'none';
+                if (hoursDisplay) hoursDisplay.style.display = 'inline-block';
+                if (hoursInput) hoursInput.style.display = 'none';
+                if (editBtn) editBtn.style.display = 'inline-block';
+                if (saveBtn) saveBtn.style.display = 'none';
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                if (deleteSubtask) deleteSubtask.style.display = 'inline-block';
+                
+                // ✅ ПЕРЕСОРТИРУЕМ СТРОКИ после обновления
+                reorderRowsByPosition();
+                
+                showNotification('Подзадача обновлена', 'success');
+            } else {
+                const error = await response.json();
+                showNotification(error.detail || 'Ошибка при обновлении', 'danger');
+            }
+        } catch (error) {
+            console.error('Update error:', error);
+            showNotification('Ошибка соединения', 'danger');
+        } finally {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
+    }
+
+
+    
+    // ==================== Удаление подзадачи ====================
+    
+    async function handleDeleteClick(e) {
+        e.preventDefault();  // Добавить
+        e.stopPropagation(); // Добавить
+
+        const btn = e.currentTarget;
+        const subtaskId = btn.dataset.subtaskId;
+        const subtaskTitle = btn.dataset.subtaskTitle;
+        
+        if (confirm(`Вы уверены, что хотите удалить подзадачу "${subtaskTitle}"?`)) {
+            const row = document.getElementById(`subtask-row-${subtaskId}`);
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch(`/api/v1/tasks/subtasks/${subtaskId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    if (row) row.remove();
+                    await updateTotalHours();
+                    
+                    const remainingRows = document.querySelectorAll('#subtasks-tbody tr');
+                    if (remainingRows.length === 0) {
+                        const container = document.getElementById('subtasks-container');
+                        if (container) {
+                            container.innerHTML = `
+                                <div class="text-muted text-center py-3" id="no-subtasks-message">
+                                    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                    <p class="mb-0 mt-2">Нет подзадач</p>
+                                    <small>Нажмите "Разбить на подзадачи (AI)" для автоматического создания</small>
+                                </div>
+                            `;
+                        }
+                    }
+                    showNotification('Подзадача удалена', 'success');
+                } else {
+                    const error = await response.json();
+                    showNotification(error.detail || 'Ошибка при удалении', 'danger');
+                }
+            } catch (error) {
+                console.error('Delete error:', error);
+                showNotification('Ошибка соединения', 'danger');
+            }
+            
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
+    }
+    
+    async function updateTotalHours() {
+        const taskIdElement = document.getElementById('newSubtaskTaskID');
+        const taskId = taskIdElement ? taskIdElement.value : window.location.pathname.split('/').pop();
+        
+        try {
+            const response = await fetch(`/api/v1/tasks/${taskId}/total-hours`, {
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                const totalHoursSpan = document.getElementById('total-hours');
+                if (totalHoursSpan) {
+                    totalHoursSpan.textContent = data.total_hours.toFixed(1);
+                }
+            }
+        } catch (error) {
+            console.error('Error updating total hours:', error);
+        }
+    }
+    
+    // ==================== Инициализация обработчиков ====================
+    
+    function initSubtaskHandlers() {
+        document.querySelectorAll('.edit-hours-btn').forEach(btn => {
+            btn.removeEventListener('click', handleEditClick);
+            btn.addEventListener('click', handleEditClick);
+        });
+        
+        document.querySelectorAll('.save-hours-btn').forEach(btn => {
+            btn.removeEventListener('click', handleSaveClick);
+            btn.addEventListener('click', handleSaveClick);
+        });
+        
+        document.querySelectorAll('.cancel-hours-btn').forEach(btn => {
+            btn.removeEventListener('click', handleCancelClick);
+            btn.addEventListener('click', handleCancelClick);
+        });
+        
+        document.querySelectorAll('.delete-subtask').forEach(btn => {
+            btn.removeEventListener('click', handleDeleteClick);
+            btn.addEventListener('click', handleDeleteClick);
+        });
+    }
+    
+    // ==================== Ручное добавление подзадачи ====================
+    
+    function toggleAddSubtaskForm() {
+        const form = document.getElementById('addSubtaskForm');
+        const btn = document.getElementById('showAddSubtaskBtn');
+        
+        if (form && form.style.display === 'none') {
+            form.style.display = 'block';
+            if (btn) btn.style.display = 'none';
+            const titleInput = document.getElementById('newSubtaskTitle');
+            const hoursInput = document.getElementById('newSubtaskHours');
+            if (titleInput) titleInput.value = '';
+            if (hoursInput) hoursInput.value = '1.0';
+            if (titleInput) titleInput.focus();
+
+            // Сохранение новой подзадачи
+            const saveSubtaskBtn = document.getElementById('saveSubtaskBtn');
+            if (saveSubtaskBtn) {
+                saveSubtaskBtn.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const title = document.getElementById('newSubtaskTitle')?.value.trim();
+                    const estimatedHours = parseFloat(document.getElementById('newSubtaskHours')?.value);
+                    const taskId = parseInt(document.getElementById('newSubtaskTaskID')?.value);
+                    
+                    if (!title) {
+                        showNotification('Введите название подзадачи', 'warning');
+                        return;
+                    }
+                    
+                    if (isNaN(estimatedHours) || estimatedHours < 0 || estimatedHours > 100) {
+                        showNotification('Введите корректное время (0-100 часов)', 'warning');
+                        return;
+                    }
+                    
+                    const originalHtml = this.innerHTML;
+                    this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+                    this.disabled = true;
+                    
+                    try {
+                        const response = await fetch(`/api/v1/tasks/${taskId}/subtasks`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ title: title, estimated_hours: estimatedHours, task_id: taskId }),
+                            credentials: 'include'
+                        });
+                        
+                        if (response.ok) {
+                            const newSubtask = await response.json();
+                            addSubtaskToTable(newSubtask);
+                            await updateTotalHours();
+                            toggleAddSubtaskForm();
+                            showNotification('Подзадача добавлена', 'success');
+                            refreshSubtasks();
+                        } else {
+                            const error = await response.json();
+                            showNotification(error.detail || 'Ошибка при добавлении', 'danger');
+                        }
+                    } catch (error) {
+                        console.error('Add subtask error:', error);
+                        showNotification('Ошибка соединения', 'danger');
+                    } finally {
+                        this.innerHTML = originalHtml;
+                        this.disabled = false;
+                    }
+                });
+            }
+
+        } else if (form) {
+            form.style.display = 'none';
+            if (btn) btn.style.display = 'inline-block';
+        }
+    }
+    
+    
+    
+    function refreshSubtasks() {
+        const container = document.getElementById('subtasks-container');
+        if (container && window.taskId) {
+            htmx.ajax('GET', `/api/v1/tasks/${window.taskId}/subtasks-html`, {
+                target: '#subtasks-container',
+                swap: 'innerHTML'
+            });
+        }
+    }
+
+    function addSubtaskToTable(subtask) {
+        const subtasksContainer = document.getElementById('subtasks-container');
+        const noSubtasksMsg = document.getElementById('no-subtasks-message');
+        
+        if (noSubtasksMsg) {
+            noSubtasksMsg.remove();
+        }
+        
+        let tbody = document.getElementById('subtasks-tbody');
+        
+        if (!tbody) {
+            subtasksContainer.innerHTML = `
+                <div class="mt-3">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <tbody id="subtasks-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            tbody = document.getElementById('subtasks-tbody');
+        }
+        
+        const newRow = document.createElement('tr');
+        newRow.id = `subtask-row-${subtask.id}`;
+        newRow.setAttribute('data-subtask-id', subtask.id);
+        newRow.setAttribute('data-position', subtask.position || 0);
+        newRow.innerHTML = `
+            <td class="text-center" style="width: 40px;">
+                <input class="form-check-input" type="checkbox" 
+                    hx-post="/api/subtasks/${subtask.id}/toggle"
+                    hx-trigger="change">
+            </td>
+            <td style="min-width: 200px;">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="subtask-title" id="title-display-${subtask.id}">${escapeHtml(subtask.title)}</span>
+                    <input type="text" class="form-control form-control-sm title-input" 
+                        id="title-input-${subtask.id}" value="${escapeHtml(subtask.title)}"
+                        style="display: none; width: 200px;">
+                </div>
+            </td>
+            <td style="width: 150px;">
+                <div class="d-flex align-items-center gap-1">
+                    <span class="hours-display" id="hours-display-${subtask.id}">${subtask.estimated_hours.toFixed(1)} ч.</span>
+                    <input type="number" class="form-control form-control-sm hours-input" 
+                        id="hours-input-${subtask.id}" value="${subtask.estimated_hours.toFixed(1)}"
+                        step="0.5" min="0" max="100" style="width: 80px; display: none;">
+                </div>
+            </td>
+        `;
+        
+        tbody.appendChild(newRow);
+        
+        const totalSpan = document.getElementById('total-hours');
+        if (totalSpan) {
+            const currentTotal = parseFloat(totalSpan.textContent) || 0;
+            totalSpan.textContent = (currentTotal + subtask.estimated_hours).toFixed(1);
+        }
+        
+        initSubtaskHandlers();
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Инициализация
+    initSubtaskHandlers();
+    
+    // Переинициализация после обновления через HTMX
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.target.id === 'subtasks-container' || (evt.target.closest && evt.target.closest('#subtasks-container'))) {
+            initSubtaskHandlers();
+        }
+    });
+</script>

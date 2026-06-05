@@ -39,12 +39,12 @@ class TasksModel(BaseModel):
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     assignee_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    parent_task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True)
+    parent_task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True, init=False)
 
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     estimated_hours: Mapped[Optional[float]] = mapped_column(Numeric(8, 2), nullable=True)
-    story_points: Mapped[Optional[int]] = mapped_column(nullable=True)
+    story_points: Mapped[Optional[int]] = mapped_column(nullable=True, init=False)
     due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     status: Mapped[TaskStatus] = mapped_column(SQLEnum(TaskStatus), default=TaskStatus.TODO)
     priority: Mapped[TaskPriority] = mapped_column(SQLEnum(TaskPriority), default=TaskPriority.LOW)
@@ -74,7 +74,7 @@ class TasksModel(BaseModel):
         "TasksHistoryModel", back_populates="task", cascade="all, delete-orphan", init=False
     )
     subtasks: Mapped[List["SubtasksModel"]] = relationship(
-        "SubtasksModel", back_populates="task", cascade="all, delete-orphan", init=False
+        "SubtasksModel", back_populates="task", cascade="all, delete-orphan", init=False, order_by="SubtasksModel.position"
     )
     dependencies: Mapped[List["TaskDependenciesModel"]] = relationship(
         "TaskDependenciesModel", foreign_keys="TaskDependenciesModel.task_id", back_populates="task", init=False

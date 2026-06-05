@@ -31,7 +31,7 @@ class ProjectsModel(BaseModel):
     
     # projects M <--> 1 user 
     owner: Mapped["UsersModel"] = relationship(
-        "UsersModel", back_populates="owned_projects" , init=False
+        "UsersModel", back_populates="owned_projects"
     )
     
     # projects 1 <--> M tasks
@@ -41,7 +41,7 @@ class ProjectsModel(BaseModel):
 
     #
     members: Mapped[List["UserProjectsModel"]] = relationship(
-        "UserProjectsModel", back_populates="project", cascade="all, delete-orphan" , init=False
+        "UserProjectsModel", back_populates="project", cascade="all, delete-orphan", init=False
     )
 
     

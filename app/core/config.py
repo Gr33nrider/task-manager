@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # JWT
     jwt_secret_key: str = Field(..., validation_alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", validation_alias="JWT_ALGORITHM")
-    jwt_access_token_expire_minutes: int = Field(default=30, validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+    jwt_access_token_expire_minutes: int = Field(default=1440, validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
     
     # Redis 
     redis_host: str = Field(default="localhost", env="REDIS_HOST")
@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     gigachat_temperature: float = Field(default=0.1, env="GIGACHAT_TEMPERATURE")
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=".env.docker",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"

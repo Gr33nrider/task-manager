@@ -1,0 +1,77 @@
+{% extends "auth/auth_base.html" %}
+
+{% block title %}Вход - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-5">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white text-center">
+                    <h4 class="mb-0"><i class="bi bi-robot"></i> {{ app_name }}</h4>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title text-center mb-4">Вход в систему</h5>
+                    
+                    <form id="loginForm" hx-post="/api/v1/auth/login" 
+                          hx-target="#form-message" hx-swap="innerHTML"
+                          hx-headers='{"Content-Type": "application/x-www-form-urlencoded"}'>
+                        
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Email или имя пользователя</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Пароль</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        
+                        <div id="form-message" style="display: none;"></div>
+                        {% if registered %}
+                        <div id="form-reg">
+                            <div class="alert alert-success" onclick="closeNotification(this)">Пользователь зарегистрирован!</div>
+                        </div>
+                        {% endif %}
+                        {% if logout %}
+                        <div id="form-reg">
+                            <div class="alert alert-info" onclick="closeNotification(this)">Сессия пользователя закончена</div>
+                        </div>
+                        {% endif %}
+                        
+                        <div id="form-error"></div>
+                        
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-box-arrow-in-right"></i> Войти
+                        </button>
+                    </form>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="text-center">
+                        <p class="mb-0">Нет аккаунта? <a href="/auth/register">Зарегистрироваться</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('loginForm').addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.successful && evt.detail.xhr.status === 200) {
+            window.location.href = '/main';
+        }
+    });
+    document.getElementById('loginForm').addEventListener('htmx:responseError', function(evt) {
+        const status = evt.detail.xhr.status;
+        const response = JSON.parse(evt.detail.xhr.responseText);
+        document.getElementById('form-error').innerHTML =
+            `<div class="alert alert-danger" onclick="closeNotification(this)"> ${response.detail}</div>`;
+    });
+
+    function closeNotification(element) {
+        element.outerHTML = ""
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,134 @@
+<form 
+      hx-post="/api/v1/tasks/"
+      id="create-form"
+      hx-target="#taskModal" 
+      hx-swap="none"
+      hx-ext="json-enc">
+    
+    <div class="modal-body">
+        <input type="hidden" name="project_id" value="{{ project.id }}">
+        <div id="form-message"></div>
+        
+        <div class="mb-3">
+            <label for="title" class="form-label">Название задачи</label>
+            <input type="text" class="form-control" id="title" name="title" 
+                   value="{{ task.title if task else '' }}" minlength="1" maxlength="500" required >
+        </div>
+        
+        <div class="mb-3">
+            <label for="description" class="form-label">Описание</label>
+            <textarea class="form-control" id="description" name="description" rows="4" ></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="priority" class="form-label">Приоритет</label>
+            <select class="form-select" id="priority" name="priority">
+                <option value="low" selected>Низкий</option>
+                <option value="medium">Средний</option>
+                <option value="high">Высокий</option>
+                <option value="critical">Очень высокий</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label for="estimated_hours" class="form-label">Время выполнения, часы</label>
+            <input type="number" class="form-control" id="estimated_hours" name="estimated_hours" 
+            step="0.5" min="0" max="1000" value="0" >
+        </div>
+
+        <div class="mb-3">
+            <label for="due_date" class="form-label">Cрок выполнения</label>
+            <input type="date" class="form-control" id="due_date" name="due_date" required>
+            <div class="form-check form-switch mt-2">
+                <label class="form-check-label" for="dateSwitch">
+                    Бессрочно
+                </label>
+                <input class="form-check-input" type="checkbox" id="dateSwitch" onchange="dateCheck()">
+            </div>
+        </div>
+        
+        <div class="mb-4">
+            <label class="form-label fw-semibold">Исполнитель</label>
+            
+            <div class="card bg-light border-0 mb-3">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-person-plus fs-5 me-2 text-success"></i>
+                            <span class="fw-medium">Назначить исполнителя</span>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="assigneeSwitch" 
+                                style="width: 3rem; height: 1.5rem; cursor: pointer;"
+                                onchange="toggleAssigneeCards()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Выбор исполнителя в виде карточек -->
+            <div id="assigneeCardsContainer" style="display: none;">
+                <div class="row g-2" id="assigneeCards">
+                    {% for member in members %}
+                    <div class="col-md-6">
+                        <div class="assignee-card" 
+                            data-user-id="{{ member.user.id }}"
+                            data-user-name="{{ member.user.full_name or member.user.username }}"
+                            onclick="selectAssignee(this, '{{ member.user.id }}')">
+                            <div class="d-flex align-items-center p-2">
+                                <div class="assignee-avatar bg-gradient-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                                    style="width: 48px; height: 48px; font-size: 1.2rem; font-weight: bold;">
+                                    {{ member.user.username[0]|upper }}
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold">{{ member.user.full_name or member.user.username }}</div>
+                                    <small class="text-muted">@{{ member.user.username }}</small>
+                                    <div class="small text-success">
+                                        <i class="bi bi-envelope"></i> {{ member.user.email }}
+                                    </div>
+                                </div>
+                                <div class="assignee-check">
+                                    <i class="bi bi-check-circle-fill text-success fs-4" style="display: none;"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Скрытое поле для выбранного ID -->
+                <input type="hidden" id="assignee_id" name="assignee_id" value="" disabled required>
+            </div>
+        </div>
+        
+
+    </div>
+    <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save"></i> Создать
+            </button>
+    </div>
+</form>
+
+<script>
+    const create_form = document.getElementById('create-form');
+
+    create_form.addEventListener('htmx:afterRequest', function(evt) {
+
+        if (evt.detail.successful &&  evt.detail.elt.id == 'create-form') {
+
+            const response = JSON.parse(evt.detail.xhr.responseText);
+            document.getElementById('form-message').innerHTML = `<div class="alert alert-success">Успешно создано!</div>`;
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        }
+        
+    });
+
+    create_form.addEventListener('htmx:responseError', function(evt) {
+        const status = evt.detail.xhr.status;
+        const response = JSON.parse(evt.detail.xhr.responseText);
+        document.getElementById('form-message').innerHTML = `<div class="alert alert-danger"> ${response.detail}</div>`;
+    });
+</script>

@@ -1,0 +1,81 @@
+<div id="subtasks-container" data-has-subtasks="true">
+    {% if task.subtasks %}
+    <div class="mt-3">
+        <div class="text-center mb-2">
+            <label class="form-label fw-semibold">Подзадачи</label>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <tbody id="subtasks-tbody">
+                    {% for subtask in task.subtasks %}
+                    <tr id="subtask-row-{{ subtask.id }}" data-subtask-id="{{ subtask.id }}" class="">
+                        <td class="text-center" style="width: 40px;">
+                            <input class="form-check-input" type="checkbox" 
+                                {% if subtask.is_completed %}checked{% endif %}
+                                hx-post="/api/subtasks/{{ subtask.id }}/toggle"
+                                hx-trigger="change" {% if viewer %}disabled{% endif %}>
+                        </td>
+                        <td style="min-width: 200px;">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="subtask-title" id="title-display-{{ subtask.id }}">
+                                    {{ subtask.title }}
+                                </span>
+                                <input type="text" 
+                                    class="form-control form-control-sm title-input" 
+                                    id="title-input-{{ subtask.id }}"
+                                    value="{{ subtask.title }}"
+                                    style="display: none; width: 200px;">
+                            </div>
+                        </td>
+                        <td style="width: 70px;">
+                            <div class="d-flex justify-content-center gap-1">
+                                <span class="hours-display text-center" id="hours-display-{{ subtask.id }}">{{ "%.1f"|format(subtask.estimated_hours) }} ч.</span>
+                                <input type="number" 
+                                    class="form-control form-control-sm hours-input" 
+                                    id="hours-input-{{ subtask.id }}"
+                                    value="{{ "%.1f"|format(subtask.estimated_hours) }}"
+                                    step="0.5" 
+                                    min="0" 
+                                    max="100"
+                                    style="width: 80px; display: none;">
+                            </div>
+                        </td>
+                        {% if not viewer %}
+                        <td class="w-10"></td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-muted text-center py-3" id="no-subtasks-message">
+        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+        <p class="mb-0 mt-2">Нет подзадач</p>
+        <small>Нажмите "Разбить на подзадачи (AI)" для автоматического создания</small>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .hours-input {
+        text-align: center;
+    }
+    
+    .edit-hours-btn, .save-hours-btn, .cancel-hours-btn {
+        padding: 2px 6px;
+    }
+    
+    .table-sm td {
+        vertical-align: middle;
+    }
+    
+    #subtasks-tbody tr {
+        transition: background-color 0.2s ease;
+    }
+    
+    #subtasks-tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+</style>

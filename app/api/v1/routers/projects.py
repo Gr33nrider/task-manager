@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 
 from app.core.database import SessionDep
-from app.core.auth import get_current_active_user
+from app.core.auth import CurrentUserDep, get_current_active_user
 from app.schemas.project import SProjectCreate, SProjectUpdate, SProjectResponse
 from app.models.users import UsersModel
 from app.models.projects import ProjectsModel
@@ -47,7 +47,7 @@ async def get_my_projects(
     
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/create", status_code=status.HTTP_201_CREATED)
 async def create_project(
     project_data: SProjectCreate,
     session: SessionDep,
@@ -97,3 +97,37 @@ async def delete_project(
     """Удалить проект (только владелец или админ)"""
     
     await ProjectRepository.delete_project(project_id, session, current_user)
+
+@router.post("/{project_id}/add-member")
+async def add_project_member(
+    project_id: int,
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUserDep
+):
+    result = await ProjectRepository.add_member(project_id, request, session, current_user)
+
+    if result:
+        return {"msg": "Added"}
+
+
+@router.delete("/{project_id}/remove-member/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_project_member(
+    project_id: int,
+    user_id: int,
+    session: SessionDep,
+    current_user: CurrentUserDep
+):
+    result = await ProjectRepository.remove_member(project_id, user_id, session, current_user)
+
+
+
+@router.put("/{project_id}/update-member-role")
+async def update_member_role(
+    project_id: int,
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUserDep
+):
+    result = await ProjectRepository.update_member(project_id,request,session,current_user)
+

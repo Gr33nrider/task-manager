@@ -25,7 +25,11 @@ class SUserResponse(SUserBase):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-        
+
+
+class SUserSettings(BaseModel):
+    is_active: Optional[bool] = None
+    role: UserRole = UserRole.USER
 
 class SUserLogin(BaseModel):
     username: str

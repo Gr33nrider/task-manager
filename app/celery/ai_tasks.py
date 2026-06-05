@@ -20,6 +20,8 @@ def decompose_task(self, task_id: int, title: str, description: Optional[str] = 
     """
     try:
         async_to_sync(_update_ai_task_status)(self.request.id, task_id, AITaskStatus.PROCESSING)
+
+        async_to_sync(_delete_old_subtasks)(task_id)
         
         subtasks_data = async_to_sync(gigachat_service.decompose_task)(title, description)
         
@@ -117,6 +119,26 @@ async def _update_ai_task_status(
         
         await session.commit()
 
+
+async def _delete_old_subtasks(task_id: int):
+    """Удаляет все существующие подзадачи задачи перед созданием новых"""
+    from sqlalchemy import delete, select
+    
+    async with celery_async_new_session() as session:
+        # Сначала проверяем, есть ли подзадачи
+        check_stmt = select(SubtasksModel).where(SubtasksModel.task_id == task_id)
+        result = await session.execute(check_stmt)
+        existing_subtasks = result.scalars().all()
+        
+        if existing_subtasks:
+            # Удаляем все подзадачи
+            stmt = delete(SubtasksModel).where(SubtasksModel.task_id == task_id)
+            await session.execute(stmt)
+            logger.info(f"Deleted {len(existing_subtasks)} old subtasks for task {task_id}")
+        else:
+            logger.info(f"No old subtasks to delete for task {task_id}")
+        
+        await session.commit()
 
 async def _save_subtasks(task_id: int, subtasks_data: List[Dict]) -> List[Dict]:
     """Сохраняет подзадачи в БД"""

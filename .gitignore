@@ -1,8 +1,27 @@
 venv/
 __pycache__
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dockerignore
+
 .env
+.env.docker
+.env.local
+.env.*.local
 
 .vscode
 .pytest_cache
 
 alembic/versions/*.pyc
+
+celerybeat-*
+
+
+
+
+

@@ -16,7 +16,7 @@ class DecomposeRequest(BaseModel):
     task_id: int
 
 
-class DecomposeResponse(BaseModel):
+class DecomposeResponse(DecomposeRequest):
     ai_task_id: int
     status: AITaskStatus
     celery_task_id: str

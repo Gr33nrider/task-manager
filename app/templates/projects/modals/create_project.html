@@ -1,0 +1,93 @@
+<div class="modal fade" id="createProjectModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-circle"></i> Создание проекта
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createProjectForm" 
+                      hx-post="/api/v1/projects/create"
+                      hx-target="#form-message"
+                      hx-swap="none"
+                      hx-ext="json-enc">
+                    
+                    <div id="form-message"></div>
+                    
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Название проекта *</label>
+                        <input type="text" class="form-control" id="name" name="name" 
+                               required minlength="3" maxlength="200">
+                        <div class="form-text">От 3 до 200 символов</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="key" class="form-label">Ключ проекта *</label>
+                        <input type="text" class="form-control text-uppercase" id="key" name="key" 
+                               required pattern="[A-Z0-9]{2,10}" 
+                               placeholder="например, DEV"
+                               hx-get="/api/projects/check-key"
+                               hx-trigger="keyup changed delay:500ms"
+                               hx-target="#key-feedback"
+                               hx-swap="none">
+                        <div id="key-feedback" class="form-text">  </div>
+                        <div class="form-text">2-10 символов, только буквы и цифры. Используется в номерах задач (например, DEV-123)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Описание</label>
+                        <textarea class="form-control" id="description" name="description" rows="4"></textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            Отмена
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> Создать проект
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Live валидация ключа
+    document.getElementById('key')?.addEventListener('input', function(e) {
+        this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    });
+    document.getElementById('key')?.addEventListener('htmx:afterRequest', function(evt) {
+        key_info = JSON.parse(evt.detail.xhr.responseText);
+        if (key_info.valid) {
+            document.getElementById('key-feedback').innerHTML = 
+                `<div class="text-success mt-2"> ${key_info.message}</div>`;
+        } else {
+            document.getElementById('key-feedback').innerHTML = 
+                `<div class="text-danger mt-2"> ${key_info.message}</div>`; 
+        }
+        
+    });
+    
+    // Обработка успешного создания
+    document.getElementById('createProjectForm')?.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.successful && evt.detail.xhr.status === 201) {             
+            project_data = JSON.parse(evt.detail.xhr.responseText);
+            document.getElementById('form-message').innerHTML = 
+                `<div class="text-success mt-2">Создано!</div>`;
+            setTimeout(() => {
+                window.location.href = '/dashboard/' + project_data.id;
+            }, 1000);
+        }
+    });
+
+    document.getElementById('createProjectForm').addEventListener('htmx:responseError', function(evt) {
+        const status = evt.detail.xhr.status;
+        const response = JSON.parse(evt.detail.xhr.responseText);
+        document.getElementById('form-message').innerHTML =
+            `<div class="alert alert-danger"> ${response.detail}</div>`;
+    });
+</script>

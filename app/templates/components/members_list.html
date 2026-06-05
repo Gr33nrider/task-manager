@@ -1,0 +1,240 @@
+<div class="members-panel-body">
+    <!-- Владелец проекта -->
+    <div class="member-group">
+        <div class="member-group-title">
+            <i class="bi bi-star-fill text-warning"></i> Владелец
+        </div>
+        <div class="member-item">
+            <div class="member-avatar bg-primary text-white">
+                {{ project_owner.user.username[0]|upper if project_owner else '?' }}
+            </div>
+            <div class="member-info">
+                <div class="member-name">
+                    {{ project_owner.user.full_name or 'Пользователь' if project_owner else '—' }}
+                </div>
+                <div class="member-username">
+                    @{{ project_owner.user.username if project_owner else '—' }}
+                    {% if project_owner and project_owner.user.id == current_user.id %}
+                    <span class="badge bg-secondary ms-2" style="font-size: 10px;">ВЫ</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Администраторы -->
+    {% if project_admins %}
+    <div class="member-group">
+        <div class="member-group-title">
+            <i class="bi bi-shield-lock-fill text-danger"></i> Администраторы
+        </div>
+        {% for member in project_admins %}
+        <div class="member-item">
+            <div class="member-avatar bg-danger text-white">
+                {{ member.user.username[0]|upper }}
+            </div>
+            <div class="member-info">
+                <div class="member-name">
+                    {{ member.user.full_name or 'Пользователь' }}
+                </div>
+                <div class="member-username">
+                    @{{ member.user.username }}
+                    {% if member.user.id == current_user.id %}
+                    <span class="badge bg-secondary ms-2" style="font-size: 10px;">ВЫ</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% if member.user.id != current_user.id and invite_rights %}
+            <button class="btn btn-sm btn-outline-danger remove-member-btn" 
+                    data-user-id="{{ member.user.id }}"
+                    data-user-name="{{ member.user.username }}"
+                    data-role="admin"
+                    title="Удалить администратора">
+                <i class="bi bi-x-lg"></i>
+            </button>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- Участники -->
+    {% if project_members %}
+    <div class="member-group">
+        <div class="member-group-title">
+            <i class="bi bi-person-badge-fill text-success"></i> Участники
+        </div>
+        {% for member in project_members %}
+        <div class="member-item">
+            <div class="member-avatar bg-success text-white">
+                {{ member.user.username[0]|upper }}
+            </div>
+            <div class="member-info">
+                <div class="member-name">
+                    {{ member.user.full_name or 'Пользователь' }}
+                    
+                </div>
+                <div class="member-username">
+                    @{{ member.user.username }}
+                    {% if member.user.id == current_user.id %}
+                    <span class="badge bg-secondary ms-2" style="font-size: 10px;">ВЫ</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% if member.user.id != current_user.id and invite_rights %}
+            <button class="btn btn-sm btn-outline-danger remove-member-btn" 
+                    data-user-id="{{ member.user.id }}"
+                    data-user-name="{{ member.user.username }}"
+                    data-role="member"
+                    title="Удалить участника">
+                <i class="bi bi-x-lg"></i>
+            </button>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Доступ к просмотру -->
+    {% if project_viewers %}
+    <div class="member-group">
+        <div class="member-group-title">
+            <i class="bi bi-binoculars-fill text-info"></i> Просмотр
+        </div>
+        {% for member in project_viewers %}
+            <div class="member-item">
+                <div class="member-avatar bg-info text-white">
+                    {{ member.user.username[0]|upper }}
+                </div>
+                <div class="member-info">
+                    <div class="member-name">
+                        {{ member.user.full_name or member.user.username }}
+                        
+                    </div>
+                    <div class="member-username">
+                        @{{ member.user.username }}
+                        {% if member.user.id == current_user.id %}
+                            <span class="badge bg-secondary ms-2" style="font-size: 10px;">ВЫ</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if member.user.id != current_user.id and invite_rights %}
+                    <button class="btn btn-sm btn-outline-danger remove-member-btn" 
+                            data-user-id="{{ member.user.id }}"
+                            data-user-name="{{ member.user.username }}"
+                            data-role="member"
+                            title="Удалить участника">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    {% if invite_rights %}
+    <!-- Пригласить участника -->
+    <div class="member-invite mt-3">
+        <button class="btn btn-sm btn-outline-primary w-100" 
+                data-bs-toggle="modal" 
+                data-bs-target="#inviteMemberModal"
+                hx-get="/modals/{{ project.id }}/invite-member"
+                hx-target="#inviteModalBody"
+                hx-swap="innerHTML">
+            <i class="bi bi-person-plus-fill"></i> Пригласить участника
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // Удаление участника
+    document.querySelectorAll('.remove-member-btn').forEach(btn => {
+        btn.addEventListener('click', async function(e) {
+            e.stopPropagation();
+            const userId = this.dataset.userId;
+            const userName = this.dataset.userName;
+            const role = this.dataset.role;
+            
+            if (confirm(`Вы уверены, что хотите удалить ${role === 'admin' ? 'администратора' : 'участника'} "${userName}" из проекта?`)) {
+                // Показываем индикатор загрузки на кнопке
+                const originalHtml = this.innerHTML;
+                this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+                this.disabled = true;
+                
+                try {
+                    const response = await fetch(`/api/v1/projects/{{ project.id }}/remove-member/${userId}`, {
+                        method: 'DELETE',
+                        credentials: 'include'
+                    });
+                    
+                    if (response.ok) {
+                        // Обновляем список участников
+                        htmx.ajax('GET', `/projects/{{ project.id }}/members`, {
+                            target: '#membersPanelContent',
+                            swap: 'innerHTML'
+                        });
+                        // Показываем уведомление об успехе
+                        showNotification(`Пользователь "${userName}" удалён из проекта`, 'success');
+                    } else {
+                        const error = await response.json();
+                        showNotification(error.detail || 'Ошибка при удалении участника', 'danger');
+                        this.innerHTML = originalHtml;
+                        this.disabled = false;
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showNotification('Ошибка соединения', 'danger');
+                    this.innerHTML = originalHtml;
+                    this.disabled = false;
+                }
+            }
+        });
+    });
+    
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+        notification.style.zIndex = '9999';
+        notification.style.minWidth = '300px';
+        notification.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <span>${message}</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+    }
+</script>
+
+<style>
+    .remove-member-btn {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        flex-shrink: 0;
+        margin-left: 8px;
+    }
+    
+    .remove-member-btn:hover {
+        background-color: #dc3545;
+        color: white;
+        border-color: #dc3545;
+    }
+    
+    .member-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .member-info {
+        flex: 1;
+        min-width: 0;
+    }
+</style>

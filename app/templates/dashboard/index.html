@@ -1,0 +1,457 @@
+{% extends "base.html" %}
+
+{% block title %}Задачи - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <!-- Кнопка для открытия/закрытия панели участников -->
+                <button class="btn btn-outline-secondary" id="toggleMembersPanel" type="button">
+                    <i class="bi bi-people-fill"></i>
+                    <i class="bi bi-chevron-right ms-2" id="panelArrow"></i>
+                </button>
+                <h2 class="mb-0"><i class="bi bi-kanban"></i> <i>{{ project.name }}</i></h2>
+
+                {% if owner or admin or current_user.role == 'admin' %}
+                <a href="/project/settings/{{ project.id }}" class="text-decoration-none">
+                    <div class="badge bg-primary p-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-gear-fill" viewBox="0 0 16 16">
+                            <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 
+                            1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 
+                            1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 
+                            2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 
+                            1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 
+                            2.929 0 0 1 0 5.858z"></path>
+                        </svg>
+                    </div>
+                </a>
+                {% endif %}
+            </div>
+            <div>
+                {% if not viewer or current_user.role == 'admin' %}
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#taskModal" 
+                        hx-get="/api/modals/create-task/{{ project.id }}" hx-target="#modal-body" hx-swap="innerHTML">
+                    <i class="bi bi-plus-lg"></i> Создать задачу
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+    
+    <!-- Основной контент с выдвижной панелью -->
+    <div class="position-relative">
+        <!-- Панель участников (выдвижная) -->
+        <div id="membersPanel" class="members-panel shadow-sm">
+            <div class="members-panel-header">
+                <h6 class="mb-0"><i class="bi bi-people-fill"></i> Участники проекта</h6>
+                <button type="button" class="btn-close" id="closeMembersPanel" aria-label="Close"></button>
+            </div>
+            <div id="membersPanelContent">
+                <!-- Загрузка содержимого через HTMX при открытии панели -->
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                    <span class="ms-2">Загрузка...</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Затемнённый фон при открытой панели -->
+        <div id="membersPanelOverlay" class="members-panel-overlay" style="display: none;"></div> 
+    </div>
+
+    <!-- Kanban доска -->
+    <div id="kanban-board" class="kanban-wrapper" 
+            hx-get="/api/tasks/kanban/{{ project.id }}" 
+            hx-trigger="load, every 30s, taskUpdated from:body" 
+            hx-swap="outerHTML">
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2">Загрузка доски...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для задач -->
+<div class="modal fade" id="taskModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-title">Задача</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div id="modal-body">
+                <div class="text-center p-4">
+                    <div class="spinner-border text-primary"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Модальное окно для участников -->
+<div class="modal fade" id="inviteMemberModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus-fill"></i> Пригласить участника
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div id="inviteModalBody" class="modal-body">
+                <div class="text-center p-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">Загрузка...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Выдвижная панель участников */
+    .members-panel {
+        position: fixed;
+        left: -320px;
+        top: 0;
+        width: 320px;
+        height: 100vh;
+        background: white;
+        z-index: 1050;
+        transition: left 0.3s ease;
+        overflow-y: auto;
+        border-right: 1px solid #dee2e6;
+    }
+    
+    .members-panel.open {
+        left: 0;
+    }
+    
+    .members-panel-header {
+        padding: 1rem;
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .members-panel-header .btn-close {
+        filter: brightness(0) invert(1);
+    }
+    
+    .members-panel-body {
+        padding: 1rem;
+    }
+    
+    .member-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .member-group-title {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #6c757d;
+        margin-bottom: 0.75rem;
+        letter-spacing: 0.5px;
+    }
+    
+    .member-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem;
+        border-radius: 8px;
+        transition: background-color 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .member-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .member-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+    
+    .member-info {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .member-name {
+        font-weight: 500;
+        font-size: 0.9rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .member-username {
+        font-size: 0.75rem;
+        color: #6c757d;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .member-invite {
+        padding-top: 1rem;
+        border-top: 1px solid #dee2e6;
+    }
+    
+    /* Затемнённый фон */
+    .members-panel-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1040;
+        transition: opacity 0.3s ease;
+    }
+    
+    /* Kanban контейнер с отступом при открытой панели */
+    .kanban-wrapper {
+        transition: margin-left 0.3s ease;
+    }
+    
+    .kanban-wrapper.panel-open {
+        margin-left: 320px;
+    }
+    
+    /* Адаптация для мобильных */
+    @media (max-width: 768px) {
+        .members-panel {
+            width: 280px;
+            left: -280px;
+        }
+        
+        .kanban-wrapper.panel-open {
+            margin-left: 280px;
+        }
+    }
+</style>
+
+<script>
+    // Управление выдвижной панелью
+    const membersPanel = document.getElementById('membersPanel');
+    const kanbanboard = document.getElementById('kanban-board');
+    const overlay = document.getElementById('membersPanelOverlay');
+    const panelArrow = document.getElementById('panelArrow');
+    let isPanelOpen = false;
+    
+    function openPanel() {
+        membersPanel.classList.add('open');
+        kanbanboard.classList.add('panel-open');
+        overlay.style.display = 'block';
+        isPanelOpen = true;
+        if (panelArrow) {
+            panelArrow.classList.remove('bi-chevron-right');
+            panelArrow.classList.add('bi-chevron-left');
+        }
+
+        if (!window.membersLoaded) {
+            htmx.ajax('GET', `/projects/{{ project.id }}/members`, {
+                target: '#membersPanelContent',
+                swap: 'innerHTML'
+            });
+            window.membersLoaded = true;
+        }   
+    }
+    
+    function closePanel() {
+        membersPanel.classList.remove('open');
+        kanbanboard.classList.remove('panel-open');
+        overlay.style.display = 'none';
+        isPanelOpen = false;
+        if (panelArrow) {
+            panelArrow.classList.remove('bi-chevron-left');
+            panelArrow.classList.add('bi-chevron-right');
+        }
+    }
+    
+    function togglePanel() {
+        if (isPanelOpen) {
+            closePanel();
+        } else {
+            openPanel();
+        }
+    }
+    
+    // Привязываем обработчики
+    document.getElementById('toggleMembersPanel')?.addEventListener('click', togglePanel);
+    document.getElementById('closeMembersPanel')?.addEventListener('click', closePanel);
+    overlay?.addEventListener('click', closePanel);
+    
+    // Сохраняем состояние панели в localStorage
+    const savedPanelState = localStorage.getItem('membersPanelOpen');
+    if (savedPanelState === 'true') {
+        setTimeout(openPanel, 100);
+    }
+    
+    document.body.addEventListener('panelStateChanged', function() {
+        localStorage.setItem('membersPanelOpen', isPanelOpen);
+    });
+    
+    // Обновляем стрелку при изменении состояния
+    const observer = new MutationObserver(function() {
+        if (panelArrow) {
+            if (isPanelOpen) {
+                panelArrow.classList.remove('bi-chevron-right');
+                panelArrow.classList.add('bi-chevron-left');
+            } else {
+                panelArrow.classList.remove('bi-chevron-left');
+                panelArrow.classList.add('bi-chevron-right');
+            }
+        }
+    });
+    observer.observe(membersPanel, { attributes: true, attributeFilter: ['class'] });
+    
+    // HTMX для обновления после успешного создания/обновления
+    document.body.addEventListener('taskUpdated', function() {
+        htmx.trigger('#kanban-board', 'load');
+    });
+</script>
+<style>
+#search_results {
+    position: absolute;
+    z-index: 1060;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    width: calc(100% - 2rem);
+}
+
+.list-group-item {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+.list-group-item:active {
+    background-color: #e9ecef;
+}
+</style>
+<!-- Скрипты карточки исполнителей -->
+<script>
+    function toggleAssigneeCards() {
+    const switchCheckbox = document.getElementById('assigneeSwitch');
+    const cardsContainer = document.getElementById('assigneeCardsContainer');
+    const hiddenInput = document.getElementById('assignee_id');
+    
+    if (switchCheckbox.checked) {
+        cardsContainer.style.display = 'block';
+        cardsContainer.style.animation = 'fadeIn 0.3s ease';
+    } else {
+        cardsContainer.style.display = 'none';
+        hiddenInput.disabled = true;
+        hiddenInput.value = '';
+        
+        // Снимаем выделение со всех карточек
+        document.querySelectorAll('.assignee-card').forEach(card => {
+            card.classList.remove('selected');
+            const checkIcon = card.querySelector('.assignee-check i');
+            if (checkIcon) checkIcon.style.display = 'none';
+        });
+    }
+}
+
+function selectAssignee(card, userId) {
+    // Снимаем выделение со всех карточек
+    document.querySelectorAll('.assignee-card').forEach(c => {
+        c.classList.remove('selected');
+        const checkIcon = c.querySelector('.assignee-check i');
+        if (checkIcon) checkIcon.style.display = 'none';
+    });
+    // Выделяем выбранную карточку
+    card.classList.add('selected');
+    const checkIcon = card.querySelector('.assignee-check i');
+    if (checkIcon) checkIcon.style.display = 'block';
+    
+    const hiddenInput = document.getElementById('assignee_id');
+    // Устанавливаем значение в скрытое поле
+    document.getElementById('assignee_id').value = userId;
+    hiddenInput.disabled = false;
+}
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    const switchCheckbox = document.getElementById('assigneeSwitch');
+    if (switchCheckbox && !switchCheckbox.checked) {
+        toggleAssigneeCards();
+    }
+});
+</script>
+<style>
+    /* Стили для карточек выбора исполнителя */
+.assignee-card {
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.assignee-card:hover {
+    border-color: #0d6efd;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.assignee-card.selected {
+    border-color: #198754;
+    background-color: #f0fff4;
+}
+
+.assignee-avatar {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.3);
+}
+
+/* Стили для select */
+.form-select-lg {
+    font-size: 1rem;
+    padding: 0.75rem 1rem;
+}
+
+.form-select-lg option {
+    padding: 0.5rem;
+}
+</style>
+<!-- Cкрипты после запроса, при ошибке запроса, переключатель даты -->
+<script>
+
+function dateCheck() {
+    const dateSwitch = document.getElementById("dateSwitch");
+    const dueDateInput = document.getElementById("due_date");
+
+    
+    
+    if (dateSwitch.checked) {
+        dueDateInput.disabled = true;
+    } else {
+        dueDateInput.disabled = false;
+    }
+}
+</script>
+{% endblock %}
